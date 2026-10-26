@@ -40,25 +40,31 @@ class BackupSystem(commands.Cog):
         await interaction.response.defer(ephemeral=True)
 
         raw = await Storage.export_guild_json(interaction.guild.id)
-        # نسخة احتياطية محلية فورية أيضاً
+        # نسخة احتياطية محلية فورية أيضاً (ملفات data/backups)
         await Storage.backup_now()
 
+        sections = sorted(raw.keys()) if isinstance(raw, dict) else []
         payload = {
             "meta": {
+                "version": 2,
                 "guild_id": interaction.guild.id,
                 "guild_name": interaction.guild.name,
                 "exported_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
                 "exported_by": interaction.user.id,
                 "bot_id": self.bot.user.id if self.bot.user else None,
+                "sections": sections,
+                "sections_count": len(sections),
                 "note": (
-                    "نسخة إعدادات السيرفر. تحتوي توكنات البرودكاست المشفّرة إن وُجدت. "
-                    "احفظ الملف بمكان آمن ولا تشاركه."
+                    "نسخة كاملة لإعدادات هذا السيرفر: حماية، تذاكر، XP، برودكاست، "
+                    "فلتر، عجلة، جيف أواي، رتب، سجن، أوتو رول… "
+                    "تحتوي توكنات البرودكاست المشفّرة إن وُجدت. احفظها بمكان آمن."
                 ),
             },
             "guild": raw,
         }
 
         content = json.dumps(payload, ensure_ascii=False, indent=2)
+        size_b = len(content.encode("utf-8"))
         filename = (
             f"backup_{interaction.guild.id}_"
             f"{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
@@ -68,12 +74,20 @@ class BackupSystem(commands.Cog):
             filename=filename,
         )
 
+        sections_preview = "، ".join(sections[:12])
+        if len(sections) > 12:
+            sections_preview += f" … +{len(sections) - 12}"
+
         embed = branded_embed(
-            title="📦 نسخة احتياطية",
+            title="📦 نسخة احتياطية كاملة",
             description=(
                 f"**السيرفر:** {interaction.guild.name}\n"
-                f"**الحجم:** `{len(content.encode('utf-8'))}` بايت\n\n"
-                "الملف تحت — احفظه عندك. لو الاستضافة انمسحت تقدر تسترجع الإعدادات لاحقاً."
+                f"**الحجم:** `{size_b:,}` بايت\n"
+                f"**الأقسام المحفوظة:** `{len(sections)}`\n"
+                f"`{sections_preview or '—'}`\n\n"
+                "يشمل: الإعدادات + التذاكر المفتوحة + نقاط XP + نقاط العجلة + "
+                "حملات البرودكاست + الفلتر + الحماية + باقي الأنظمة.\n"
+                "احفظ الملف عندك — تستخدمه لاحقاً بـ `/back`."
             ),
             color=discord.Color.green(),
             timestamp=discord.utils.utcnow(),
@@ -120,6 +134,59 @@ class BackupSystem(commands.Cog):
         except discord.HTTPException:
             pass
 
+    @app_commands.command(
+        name="backup-full",
+        description="نسخة احتياطية لكل السيرفرات (مالك البوت فقط)",
+    )
+    @app_commands.guild_only()
+    async def backup_full(self, interaction: discord.Interaction):
+        if not await self.bot.is_owner(interaction.user):
+            await interaction.response.send_message(
+                "❌ هذا الأمر لمالك البوت فقط.", ephemeral=True
+            )
+            return
+
+        await interaction.response.defer(ephemeral=True)
+        await Storage.backup_now()
+        all_data = await Storage.export_all_json()
+        payload = {
+            "meta": {
+                "version": 2,
+                "type": "full",
+                "exported_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "exported_by": interaction.user.id,
+                "bot_id": self.bot.user.id if self.bot.user else None,
+                "guilds_count": len(all_data) if isinstance(all_data, dict) else 0,
+                "note": "نسخة كاملة لكل بيانات البوت (كل السيرفرات).",
+            },
+            "data": all_data,
+        }
+        content = json.dumps(payload, ensure_ascii=False, indent=2)
+        size_b = len(content.encode("utf-8"))
+        filename = f"backup_full_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+        file = discord.File(io.BytesIO(content.encode("utf-8")), filename=filename)
+        embed = branded_embed(
+            title="📦 نسخة احتياطية — كل السيرفرات",
+            description=(
+                f"**عدد السيرفرات:** `{payload['meta']['guilds_count']}`\n"
+                f"**الحجم:** `{size_b:,}` بايت\n\n"
+                "تشمل كل الإعدادات والنقاط والتذاكر والحماية لكل السيرفرات."
+            ),
+            color=discord.Color.gold(),
+            timestamp=discord.utils.utcnow(),
+        )
+        try:
+            await interaction.user.send(embed=embed, file=file)
+            await interaction.followup.send("✅ تم إرسال النسخة الكاملة على الخاص.", ephemeral=True)
+        except (discord.Forbidden, discord.HTTPException):
+            file2 = discord.File(io.BytesIO(content.encode("utf-8")), filename=filename)
+            await interaction.followup.send(
+                "⚠️ ما قدرت أرسل خاص. الملف هنا (ephemeral):",
+                embed=embed,
+                file=file2,
+                ephemeral=True,
+            )
+
     # ------------------------------------------------------------------
     # /back — استعادة من رابط JSON
     # ------------------------------------------------------------------
@@ -144,6 +211,10 @@ class BackupSystem(commands.Cog):
                     f"هالنسخة لسيرفر ثاني (ID: {meta_gid}) مش لهذا السيرفر ({current_guild_id})."
                 )
             return data["guild"]
+
+        # صيغة /backup-full: {"meta":..., "data": {"guild_id": {...}, ...}}
+        if "data" in data and isinstance(data["data"], dict):
+            data = data["data"]
 
         # نسخة كاملة: مفاتيحها آيديات سيرفرات
         gid = str(current_guild_id)

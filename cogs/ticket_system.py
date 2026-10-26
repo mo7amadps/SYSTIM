@@ -918,28 +918,130 @@ class TicketSystem(commands.Cog):
         settings = await self._type_settings(interaction.guild.id, ticket["ticket_num"])
         return await self._has_role(member, _s(settings, "admin_id", "admin"))
 
-    async def _transcript(self, channel: discord.TextChannel) -> io.BytesIO | None:
+    async def _transcript(
+        self, channel: discord.TextChannel
+    ) -> tuple[io.BytesIO | None, io.BytesIO | None, int]:
+        """يرجع (txt_buf, html_buf, message_count)."""
         try:
             messages = [m async for m in channel.history(limit=None, oldest_first=True)]
-            lines = [
-                "═══════════════════════════════════════",
-                f"📋 سجل التذكرة: #{channel.name}",
-                f"📅 التاريخ: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
-                "═══════════════════════════════════════",
-                "",
-            ]
-            for msg in messages:
-                lines.append(f"[{msg.created_at.strftime('%Y-%m-%d %H:%M:%S')}] {msg.author}:")
-                lines.append(msg.content or "[لا يوجد نص]")
-                for att in msg.attachments:
-                    lines.append(f"  📎 مرفق: {att.url}")
-                lines.append("")
-            lines.append("═══════════════════════════════════════")
-            lines.append(f"إجمالي الرسائل: {len(messages)}")
-            return io.BytesIO(chr(10).join(lines).encode("utf-8"))
         except Exception as e:
-            print("Transcript error:", e)
-            return None
+            print("Transcript history error:", e)
+            return None, None, 0
+
+        now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        # ——— TXT ———
+        lines = [
+            "═══════════════════════════════════════",
+            f"📋 سجل التذكرة: #{channel.name}",
+            f"🆔 القناة: {channel.id}",
+            f"📅 أُنشئ الأرشيف: {now_str}",
+            f"💬 عدد الرسائل: {len(messages)}",
+            "═══════════════════════════════════════",
+            "",
+        ]
+        for msg in messages:
+            ts = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            author = f"{msg.author} ({msg.author.id})"
+            lines.append(f"[{ts}] {author}:")
+            content = (msg.content or "").strip() or "[لا يوجد نص]"
+            lines.append(content)
+            for emb in msg.embeds:
+                if emb.title:
+                    lines.append(f"  📌 Embed: {emb.title}")
+                if emb.description:
+                    lines.append(f"     {emb.description[:200]}")
+            for att in msg.attachments:
+                lines.append(f"  📎 مرفق: {att.filename} — {att.url}")
+            if msg.stickers:
+                for st in msg.stickers:
+                    lines.append(f"  🏷️ ملصق: {st.name}")
+            lines.append("")
+        lines.append("═══════════════════════════════════════")
+        lines.append(f"نهاية السجل — إجمالي الرسائل: {len(messages)}")
+        txt_buf = io.BytesIO("\n".join(lines).encode("utf-8"))
+
+        # ——— HTML ———
+        def esc(s: str) -> str:
+            return (
+                (s or "")
+                .replace("&", "&amp;")
+                .replace("<", "&lt;")
+                .replace(">", "&gt;")
+                .replace('"', "&quot;")
+            )
+
+        rows = []
+        for msg in messages:
+            ts = msg.created_at.strftime("%Y-%m-%d %H:%M:%S")
+            avatar = msg.author.display_avatar.url if msg.author.display_avatar else ""
+            body = esc(msg.content or "")
+            if not body:
+                body = "<em style='color:#888'>[لا يوجد نص]</em>"
+            body = body.replace("\n", "<br>")
+            for att in msg.attachments:
+                body += (
+                    f"<div class='att'>📎 <a href='{esc(att.url)}' target='_blank'>"
+                    f"{esc(att.filename)}</a></div>"
+                )
+            for emb in msg.embeds:
+                if emb.title or emb.description:
+                    body += (
+                        f"<div class='embed'><strong>{esc(emb.title or '')}</strong>"
+                        f"<div>{esc((emb.description or '')[:400])}</div></div>"
+                    )
+            rows.append(
+                f"""
+                <div class="msg">
+                  <img class="av" src="{esc(avatar)}" alt="" />
+                  <div class="body">
+                    <div class="head">
+                      <span class="name">{esc(str(msg.author))}</span>
+                      <span class="id">#{msg.author.id}</span>
+                      <span class="time">{ts}</span>
+                    </div>
+                    <div class="content">{body}</div>
+                  </div>
+                </div>"""
+            )
+
+        html = f"""<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"/>
+<title>سجل تذكرة — #{esc(channel.name)}</title>
+<style>
+  body {{ font-family: "Segoe UI", Tahoma, sans-serif; background:#1e1f22; color:#dbdee1;
+         margin:0; padding:24px; line-height:1.5; }}
+  h1 {{ color:#fff; font-size:1.4rem; margin:0 0 4px; }}
+  .meta {{ color:#949ba4; margin-bottom:24px; font-size:.9rem; }}
+  .msg {{ display:flex; gap:12px; padding:10px 12px; border-radius:8px; }}
+  .msg:hover {{ background:#2b2d31; }}
+  .av {{ width:40px; height:40px; border-radius:50%; flex-shrink:0; }}
+  .head {{ margin-bottom:2px; }}
+  .name {{ font-weight:600; color:#fff; margin-left:8px; }}
+  .id {{ color:#72767d; font-size:.8rem; margin-left:8px; }}
+  .time {{ color:#72767d; font-size:.8rem; }}
+  .content {{ word-break:break-word; white-space:pre-wrap; }}
+  .att a {{ color:#00a8fc; }}
+  .embed {{ border-right:4px solid #5865f2; background:#2b2d31; padding:8px 12px;
+            margin-top:6px; border-radius:4px; }}
+  footer {{ margin-top:32px; color:#72767d; font-size:.85rem; border-top:1px solid #3f4147;
+            padding-top:12px; }}
+</style>
+</head>
+<body>
+  <h1>📋 سجل التذكرة — #{esc(channel.name)}</h1>
+  <div class="meta">
+    القناة: <code>{channel.id}</code> ·
+    الرسائل: <strong>{len(messages)}</strong> ·
+    الأرشيف: {now_str}
+  </div>
+  {"".join(rows) if rows else "<p style='color:#888'>لا توجد رسائل.</p>"}
+  <footer>تم إنشاء هذا الأرشيف تلقائياً بواسطة البوت عند إغلاق التذكرة.</footer>
+</body>
+</html>"""
+        html_buf = io.BytesIO(html.encode("utf-8"))
+        return txt_buf, html_buf, len(messages)
 
     async def open_ticket(self, interaction: discord.Interaction, ticket_num: int, reason: str | None):
         settings = await self._type_settings(interaction.guild.id, ticket_num)
@@ -1111,22 +1213,63 @@ class TicketSystem(commands.Cog):
                         claimed_user = await self.bot.fetch_user(ticket["claimed_by"])
                     except discord.HTTPException:
                         pass
+
+                created_at = ticket.get("created_at")
+                duration_txt = "—"
+                if created_at:
+                    try:
+                        if isinstance(created_at, (int, float)):
+                            start = datetime.fromtimestamp(float(created_at), tz=timezone.utc)
+                        else:
+                            start = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+                        delta = datetime.now(timezone.utc) - start
+                        mins = int(delta.total_seconds() // 60)
+                        if mins < 60:
+                            duration_txt = f"{mins} دقيقة"
+                        else:
+                            duration_txt = f"{mins // 60}س {mins % 60}د"
+                    except Exception:
+                        pass
+
+                txt_buf, html_buf, msg_count = await self._transcript(channel)
+
+                opener = ticket_user.mention if ticket_user else f"`{ticket['user_id']}`"
+                claimer = claimed_user.mention if claimed_user else "لم يتم الاستلام"
+                closer_txt = closer.mention if hasattr(closer, "mention") else str(closer)
+                rating_txt = ("⭐" * stars + f" ({stars}/5)") if stars else "بدون تقييم"
+
                 log_embed = discord.Embed(
-                    title="🔒 تذكرة مغلقة",
+                    title="🔒 تذكرة مغلقة — أرشيف",
                     description=(
-                        f"**التذكرة:** {channel.name}\n"
-                        f"**فتحها:** {ticket_user or ticket['user_id']}\n"
-                        f"**استلمها:** {claimed_user or 'لم يتم الاستلام'}\n"
-                        f"**أُغلقت بواسطة:** {closer}\n"
-                        f"**التقييم:** {'⭐' * stars} ({stars}/5)"
+                        f"```\n#{channel.name}\n```"
                     ),
                     color=0xED4245,
                     timestamp=datetime.now(timezone.utc),
                 )
-                buf = await self._transcript(channel)
+                log_embed.add_field(name="👤 فتحها", value=opener, inline=True)
+                log_embed.add_field(name="🛡️ استلمها", value=claimer, inline=True)
+                log_embed.add_field(name="🔒 أغلقها", value=closer_txt, inline=True)
+                log_embed.add_field(name="⭐ التقييم", value=rating_txt, inline=True)
+                log_embed.add_field(name="💬 الرسائل", value=str(msg_count), inline=True)
+                log_embed.add_field(name="⏱️ المدة", value=duration_txt, inline=True)
+                log_embed.add_field(
+                    name="📎 الأرشيف",
+                    value="ملف HTML (أنيق) + TXT مرفقان أدناه",
+                    inline=False,
+                )
+                if ticket_user:
+                    log_embed.set_thumbnail(url=ticket_user.display_avatar.url)
+                log_embed.set_footer(text=f"Ticket ID · Channel {channel.id}")
+
+                files = []
+                safe_name = "".join(c if c.isalnum() or c in "-_" else "_" for c in channel.name)[:40]
+                if html_buf:
+                    files.append(discord.File(html_buf, filename=f"ticket-{safe_name}.html"))
+                if txt_buf:
+                    files.append(discord.File(txt_buf, filename=f"ticket-{safe_name}.txt"))
                 try:
-                    if buf:
-                        await log_ch.send(embed=log_embed, file=discord.File(buf, filename=f"transcript-{channel.name}.txt"))
+                    if files:
+                        await log_ch.send(embed=log_embed, files=files)
                     else:
                         await log_ch.send(embed=log_embed)
                 except discord.HTTPException:
