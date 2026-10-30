@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import random
 import re
 import time
@@ -23,6 +24,7 @@ from cogs.games_data import (
 from cogs.games_replica_words import word_in_category
 
 SECTION = "games"
+logger = logging.getLogger(__name__)
 
 # ───────────── بيانات ─────────────
 
@@ -752,7 +754,7 @@ class RouletteJoinView(discord.ui.View):
                 except Exception:
                     pass
                 await interaction.channel.send(f"🎡 بدأت الروليت بـ **{n}** لاعب!")
-                await self.cog._roulette_begin(st)
+                await self.cog._roulette_begin(st, interaction.channel)
 
             btn.callback = _start
             self.add_item(btn)
@@ -2403,24 +2405,51 @@ class GamesSystem(commands.Cog):
         except Exception:
             pass
         await ch.send(f"🎡 بدأت الروليت بـ **{n}** لاعب!")
-        await self._roulette_begin(st)
+        try:
+            await self._roulette_begin(st, ch)
+        except Exception as e:
+            logger.exception("roulette begin failed")
+            try:
+                await ch.send(f"❌ فشل بدء الروليت: `{type(e).__name__}: {e}`")
+            except Exception:
+                pass
+            await self._clear(channel_id)
 
-    async def _roulette_begin(self, st: dict):
+    async def _roulette_begin(self, st: dict, channel=None):
         st["phase"] = "play"
-        # تثبيت أرقام الدخول حسب ترتيب الدخول
-        st["join_numbers"] = {
-            str(uid): i for i, uid in enumerate((st.get("players") or {}).keys(), 1)
-        }
-        ch = self.bot.get_channel(st["channel_id"])
+        # تثبيت أرقام الدخول حسب ترتيب الدخول (ثابت حتى نهاية اللعبة)
+        if not st.get("join_numbers"):
+            st["join_numbers"] = {
+                str(uid): i for i, uid in enumerate(list((st.get("players") or {}).keys()), 1)
+            }
+        ch = channel
+        if ch is None:
+            ch = self.bot.get_channel(st["channel_id"])
+        if ch is None:
+            try:
+                ch = await self.bot.fetch_channel(st["channel_id"])
+            except Exception:
+                ch = None
+        if ch is None:
+            await self._clear(st.get("channel_id"))
+            return
+        # تأكد إن الحالة لسا في _ACTIVE
+        _ACTIVE[st["channel_id"]] = st
         await self._roulette_turn(ch, st)
 
     async def _roulette_turn(self, channel, st: dict):
-        players = list(st["players"].keys())
+        if channel is None:
+            await self._clear(st.get("channel_id"))
+            return
+        players = list((st.get("players") or {}).keys())
         if len(players) <= 1:
             winner = players[0] if players else None
             if winner:
-                pts = await _add_point(channel.guild.id, winner)
-                await channel.send(f"🏆 الفائز بالروليت: <@{winner}> · نجوم: **{pts}**")
+                try:
+                    pts = await _add_point(channel.guild.id, winner)
+                    await channel.send(f"🏆 الفائز بالروليت: <@{winner}> · نجوم: **{pts}**")
+                except Exception:
+                    await channel.send(f"🏆 الفائز بالروليت: <@{winner}>")
             else:
                 await channel.send("انتهت الروليت بدون فائز.")
             await self._clear(channel.id)
@@ -2428,7 +2457,8 @@ class GamesSystem(commands.Cog):
 
         chooser = random.choice(players)
         st["chooser"] = chooser
-        timeout = int(st.get("timeout") or 30)
+        st["phase"] = "play"
+        timeout = max(10, min(300, int(st.get("timeout") or 30)))
         emb = discord.Embed(
             title="🎡 دور الطرد",
             description=(
@@ -2446,26 +2476,40 @@ class GamesSystem(commands.Cog):
                 emb.set_thumbnail(url=g.icon.url)
         except Exception:
             pass
-        emb.set_footer(text=f"رقم الدور · {len(players)} متبقين")
-        view = RoulettePickView(self, channel.id, chooser, 0)
-        # منشن ظاهر عشان يتنبّه
-        msg = await channel.send(
-            content=f"<@{chooser}> — دورك تختار مين ينطرد!",
-            embed=emb,
-            view=view,
-        )
+        emb.set_footer(text=f"{len(players)} متبقين · {timeout}ث")
+        try:
+            view = RoulettePickView(self, channel.id, chooser, 0)
+        except Exception as e:
+            logger.exception("RoulettePickView build failed")
+            await channel.send(f"❌ فشل بناء قائمة الطرد: `{e}`")
+            await self._clear(channel.id)
+            return
+        try:
+            msg = await channel.send(
+                content=f"<@{chooser}> — دورك تختار مين ينطرد!",
+                embed=emb,
+                view=view,
+            )
+        except Exception as e:
+            logger.exception("roulette turn send failed")
+            await channel.send(f"❌ ما قدرت أرسل دور الطرد: `{e}`")
+            await self._clear(channel.id)
+            return
 
         st["pick_msg"] = msg.id
         st["deadline"] = time.monotonic() + timeout
+        _ACTIVE[channel.id] = st
 
         async def _timer():
             await asyncio.sleep(timeout)
             cur = _ACTIVE.get(channel.id)
             if not cur or cur.get("chooser") != chooser or cur.get("phase") != "play":
                 return
-            # انتهى الوقت → المختار ينطرد
             cur["players"].pop(chooser, None)
-            await channel.send(f"⏰ <@{chooser}> ما اختار — انطرد.")
+            try:
+                await channel.send(f"⏰ <@{chooser}> ما اختار — انطرد.")
+            except Exception:
+                pass
             await self._roulette_turn(channel, cur)
 
         asyncio.create_task(_timer())
