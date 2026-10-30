@@ -797,10 +797,9 @@ class RouletteJoinView(discord.ui.View):
 
 
 class RoulettePickView(discord.ui.View):
-    """قوائم اختيار (20 لاعب لكل قائمة) + رقم الدخول + طرد عشوائي."""
+    """أزرار لاعبين مرقّمة (زي أنظمة الروليت) + صفحات + طرد عشوائي."""
 
-    PER_MENU = 20
-    MENUS_PER_PAGE = 4
+    PER_PAGE = 20  # 4 صفوف × 5 أزرار
 
     def __init__(self, cog: "GamesSystem", channel_id: int, chooser_id: int, page: int = 0):
         super().__init__(timeout=None)
@@ -811,7 +810,6 @@ class RoulettePickView(discord.ui.View):
         self._build()
 
     def _players_items(self, st: dict) -> list[tuple[int, str]]:
-        """يرجع [(user_id, name), ...] بشكل آمن مهما كان شكل التخزين."""
         raw = st.get("players") or {}
         out: list[tuple[int, str]] = []
         if isinstance(raw, dict):
@@ -820,42 +818,35 @@ class RoulettePickView(discord.ui.View):
                     uid = int(k)
                 except Exception:
                     continue
-                name = v if isinstance(v, str) else str(v)
-                out.append((uid, name))
+                out.append((uid, v if isinstance(v, str) else str(v)))
         elif isinstance(raw, (list, tuple, set)):
             for x in raw:
                 try:
                     if isinstance(x, (list, tuple)) and len(x) >= 1:
-                        uid = int(x[0])
-                        name = str(x[1]) if len(x) > 1 else str(uid)
+                        out.append((int(x[0]), str(x[1]) if len(x) > 1 else str(x[0])))
                     else:
-                        uid = int(x)
-                        name = str(uid)
-                    out.append((uid, name))
+                        out.append((int(x), str(x)))
                 except Exception:
                     continue
         return out
 
     def _ordered_targets(self, st: dict) -> list[tuple[int, int, str]]:
-        """(رقم_الدخول, user_id, الاسم) بدون المختار."""
-        numbers = st.get("join_numbers") or {}
-        if not isinstance(numbers, dict):
-            numbers = {}
+        numbers = st.get("join_numbers") if isinstance(st.get("join_numbers"), dict) else {}
         rows: list[tuple[int, int, str]] = []
         for i, (uid, name) in enumerate(self._players_items(st), 1):
             if uid == self.chooser_id:
                 continue
-            num_raw = numbers.get(str(uid), numbers.get(uid, numbers.get(int(uid), i) if False else i))
-            # numbers قد تكون str(uid)->int
             if str(uid) in numbers:
-                num_raw = numbers[str(uid)]
+                try:
+                    num = int(numbers[str(uid)])
+                except Exception:
+                    num = i
             elif uid in numbers:
-                num_raw = numbers[uid]
+                try:
+                    num = int(numbers[uid])
+                except Exception:
+                    num = i
             else:
-                num_raw = i
-            try:
-                num = int(num_raw)
-            except Exception:
                 num = i
             rows.append((num, uid, name or str(uid)))
         rows.sort(key=lambda x: x[0])
@@ -867,65 +858,46 @@ class RoulettePickView(discord.ui.View):
         if not st:
             return
         targets = self._ordered_targets(st)
-        per_page = self.PER_MENU * self.MENUS_PER_PAGE
-        pages = max(1, (len(targets) + per_page - 1) // per_page) if targets else 1
+        pages = max(1, (len(targets) + self.PER_PAGE - 1) // self.PER_PAGE) if targets else 1
         self.page = max(0, min(self.page, pages - 1))
-        start = self.page * per_page
-        chunk = targets[start : start + per_page]
+        start = self.page * self.PER_PAGE
+        chunk = targets[start : start + self.PER_PAGE]
 
-        for m in range(self.MENUS_PER_PAGE):
-            part = chunk[m * self.PER_MENU : (m + 1) * self.PER_MENU]
-            if not part:
-                break
-            options = []
-            for item in part:
-                try:
-                    num, uid, name = item[0], item[1], item[2]
-                except Exception:
-                    continue
-                label = f"{num} | {name}"
-                if len(label) > 100:
-                    label = label[:97] + "..."
-                options.append(
-                    discord.SelectOption(
-                        label=label,
-                        value=str(uid),
-                        description=f"رقم الدخول {num}",
-                    )
-                )
-            if not options:
-                continue
-            sel = discord.ui.Select(
-                placeholder=f"اختر لاعب للطرد · {m + 1} (ص {self.page + 1}/{pages})",
-                options=options,
-                min_values=1,
-                max_values=1,
-                row=m,
+        # أزرار اللاعبين — 5 بكل صف
+        for idx, item in enumerate(chunk):
+            num, uid, name = item[0], item[1], item[2]
+            label = f"{num} | {name}"
+            if len(label) > 80:
+                label = label[:77] + "..."
+            row = idx // 5
+            btn = discord.ui.Button(
+                label=label,
+                style=discord.ButtonStyle.secondary,
+                row=row,
+                custom_id=f"rl:kick:{self.channel_id}:{uid}:{self.chooser_id}:{self.page}",
             )
 
-            async def _on_select(interaction: discord.Interaction, select=sel):
+            async def _kick_btn(
+                interaction: discord.Interaction,
+                target_id=uid,
+            ):
                 if interaction.user.id != self.chooser_id:
                     await interaction.response.send_message("مو دورك.", ephemeral=True)
-                    return
-                try:
-                    target_id = int(select.values[0])
-                except Exception:
-                    await interaction.response.send_message("اختيار غير صالح.", ephemeral=True)
                     return
                 await self.cog._roulette_kick(
                     interaction, self.channel_id, self.chooser_id, target_id
                 )
 
-            sel.callback = _on_select
-            self.add_item(sel)
+            btn.callback = _kick_btn
+            self.add_item(btn)
 
-        btn_row = min(4, self.MENUS_PER_PAGE if chunk else 0)
-        # أزرار تنقل
+        # صف التحكم الأخير
+        ctrl_row = min(4, (len(chunk) + 4) // 5 if chunk else 0)
         if pages > 1:
             prev = discord.ui.Button(
-                label="◀ السابق",
+                label="◀",
                 style=discord.ButtonStyle.primary,
-                row=btn_row,
+                row=ctrl_row,
                 disabled=self.page <= 0,
             )
 
@@ -939,10 +911,18 @@ class RoulettePickView(discord.ui.View):
             prev.callback = _prev
             self.add_item(prev)
 
+            page_lbl = discord.ui.Button(
+                label=f"{self.page + 1}/{pages}",
+                style=discord.ButtonStyle.secondary,
+                row=ctrl_row,
+                disabled=True,
+            )
+            self.add_item(page_lbl)
+
             nxt = discord.ui.Button(
-                label="التالي ▶",
+                label="▶",
                 style=discord.ButtonStyle.primary,
-                row=btn_row,
+                row=ctrl_row,
                 disabled=self.page >= pages - 1,
             )
 
@@ -960,7 +940,7 @@ class RoulettePickView(discord.ui.View):
             label="طرد عشوائي",
             style=discord.ButtonStyle.danger,
             emoji="🎲",
-            row=btn_row,
+            row=ctrl_row,
         )
 
         async def _rnd(interaction: discord.Interaction):
@@ -971,14 +951,12 @@ class RoulettePickView(discord.ui.View):
             if not cur or cur.get("phase") != "play":
                 await interaction.response.send_message("اللعبة خلصت.", ephemeral=True)
                 return
-            items = self._players_items(cur)
-            pool = [uid for uid, _ in items if uid != self.chooser_id]
+            pool = [uid for uid, _ in self._players_items(cur) if uid != self.chooser_id]
             if not pool:
                 await interaction.response.send_message("ما في أحد للطرد.", ephemeral=True)
                 return
-            target_id = random.choice(pool)
             await self.cog._roulette_kick(
-                interaction, self.channel_id, self.chooser_id, target_id
+                interaction, self.channel_id, self.chooser_id, random.choice(pool)
             )
 
         rnd.callback = _rnd
@@ -987,7 +965,7 @@ class RoulettePickView(discord.ui.View):
         withdraw = discord.ui.Button(
             label="انسحب",
             style=discord.ButtonStyle.secondary,
-            row=btn_row,
+            row=ctrl_row,
         )
 
         async def _wd(interaction: discord.Interaction):
@@ -2503,23 +2481,25 @@ class GamesSystem(commands.Cog):
         st["phase"] = "play"
         timeout = max(10, min(300, int(st.get("timeout") or 30)))
         emb = discord.Embed(
-            title="🎡 دور الطرد",
+            title="🎡 الروليت",
             description=(
-                f"لديك **{timeout}** ثانية لاختيار لاعب لطرده"
+                f"<@{chooser}> لديك **{timeout}** ثانية"
                 + chr(10)
-                + f"الباقي: **{len(players)}** لاعب"
+                + "**لاختيار لاعب لطرده:**"
                 + chr(10)
-                + "استخدم القوائم أو **طرد عشوائي**"
+                + chr(10)
+                + f"اللاعبون المتبقون: **{len(players)}**"
             ),
-            color=discord.Color.from_rgb(20, 24, 40),
+            color=discord.Color.from_rgb(15, 18, 32),
         )
         try:
             g = channel.guild
             if g and g.icon:
                 emb.set_thumbnail(url=g.icon.url)
+                emb.set_image(url=g.icon.url)
         except Exception:
             pass
-        emb.set_footer(text=f"{len(players)} متبقين · {timeout}ث")
+        emb.set_footer(text=f"اضغط اسم اللاعب · أو طرد عشوائي")
         try:
             view = RoulettePickView(self, channel.id, chooser, 0)
         except Exception as e:
@@ -2529,7 +2509,7 @@ class GamesSystem(commands.Cog):
             return
         try:
             msg = await channel.send(
-                content=f"<@{chooser}> — دورك تختار مين ينطرد!",
+                content=f"⚡ | دور الطرد\n<@{chooser}> لديك **{timeout}** ثانية لاختيار لاعب لطرده:",
                 embed=emb,
                 view=view,
             )
