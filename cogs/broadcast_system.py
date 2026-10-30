@@ -123,7 +123,7 @@ def _safe_validation_error(reason: str) -> str:
 
 
 def _guild_presence_counts(guild: discord.Guild) -> tuple[int, int, int]:
-    """إجمالي · أونلاين · أوفلاين (بدون بوتات) من الكاش الحالي."""
+    """إجمالي · أونلاين · أوفلاين (بدون بوتات)."""
     humans = [m for m in guild.members if not m.bot]
     total = len(humans)
     online = sum(
@@ -136,37 +136,6 @@ def _guild_presence_counts(guild: discord.Guild) -> tuple[int, int, int]:
         }
     )
     offline = total - online
-    return total, online, offline
-
-
-async def _fresh_presence_counts(guild: discord.Guild) -> tuple[int, int, int]:
-    """
-    يحدّث كاش الأعضاء من ديسكورد ثم يحسب الأونلاين.
-    بدون chunk الأرقام تتجمد بعد فترة طويلة.
-    """
-    try:
-        # يجلب كل الأعضاء للسيرفر إلى الكاش (Members Intent)
-        await guild.chunk(cache=True)
-    except Exception:
-        try:
-            # سيرفرات كبيرة: طلب الأعضاء بشكل صريح
-            await guild.fetch_members(limit=None).flatten()  # type: ignore
-        except Exception:
-            pass
-    # انتظار بسيط حتى تصل تحديثات الـ presence إن وُجدت
-    await asyncio.sleep(0.4)
-    total, online, offline = _guild_presence_counts(guild)
-    # لو الكاش ناقص، استخدم member_count كحد أدنى للإجمالي (تقريبي)
-    try:
-        approx = int(guild.member_count or 0)
-        bots = sum(1 for m in guild.members if m.bot)
-        approx_humans = max(0, approx - bots)
-        if approx_humans > total:
-            # الأعضاء الناقصين نعتبرهم أوفلاين (ما عندنا status لهم)
-            offline += approx_humans - total
-            total = approx_humans
-    except Exception:
-        pass
     return total, online, offline
 
 
@@ -824,7 +793,7 @@ class BroadcastSystem(commands.Cog):
             panel_message = await channel.fetch_message(message_id)
             tokens = _token_records(config.get("tokens", []))
             text = config.get("message") or "لم يتم تحديد رسالة"
-            total, online, offline = await _fresh_presence_counts(interaction.guild)
+            total, online, offline = _guild_presence_counts(interaction.guild)
             embed = discord.Embed(
                 title="📡 لوحة البرودكاست",
                 description="يمكنك التحكم في البوت عن طريق الأزرار",
@@ -1119,52 +1088,75 @@ class BroadcastSystem(commands.Cog):
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(administrator=True)
     async def send_panel(self, interaction: discord.Interaction):
-        if not await self._require_broadcast_access(interaction):
-            return
-        await interaction.response.defer()
-        config = await self._config(interaction.guild.id)
-        old_message_id = config.get("message_id")
-        old_channel_id = config.get("channel_id")
-        if old_message_id and old_channel_id:
-            old_channel = interaction.guild.get_channel(old_channel_id)
-            if old_channel:
-                try:
-                    old_message = await old_channel.fetch_message(old_message_id)
-                    await old_message.delete()
-                except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-                    pass
+        # رد فوري حتى ما يعلق "thinking"
+        if not interaction.response.is_done():
+            await interaction.response.defer()
+        try:
+            if not await self._require_broadcast_access(interaction):
+                return
+            config = await self._config(interaction.guild.id)
+            # حذف اللوحة القديمة بالخلفية — ما نوقف الإرسال عليه
+            old_message_id = config.get("message_id")
+            old_channel_id = config.get("channel_id")
 
-        tokens = config.get("tokens", [])
-        text = config.get("message") or "لم يتم تحديد رسالة"
-        total, online, offline = await _fresh_presence_counts(interaction.guild)
-        embed = discord.Embed(
-            title="📡 لوحة البرودكاست",
-            description="يمكنك التحكم في البوت عن طريق الأزرار",
-            color=discord.Color.teal(),
-        )
-        embed.add_field(
-            name="عدد البوتات المسجلة حاليا",
-            value=f"**```{len(tokens)} من البوتات```**",
-            inline=False,
-        )
-        embed.add_field(
-            name="رسالة البرودكاست الحالية",
-            value=f"**```{text[:1000]}```**",
-            inline=False,
-        )
-        embed.add_field(name="👥 الأعضاء", value=f"**`{total}`**", inline=True)
-        embed.add_field(name="🟢 أونلاين", value=f"**`{online}`**", inline=True)
-        embed.add_field(name="⚫ أوفلاين", value=f"**`{offline}`**", inline=True)
-        panel_message = await interaction.followup.send(
-            embed=embed,
-            view=BroadcastPanelView(self),
-            wait=True,
-        )
-        await Storage.update_guild(
-            interaction.guild.id,
-            TOKEN_SECTION,
-            {"message_id": panel_message.id, "channel_id": interaction.channel.id},
-        )
+            tokens = _token_records(config.get("tokens", []))
+            text = (config.get("message") or "لم يتم تحديد رسالة")[:1000]
+            total, online, offline = _guild_presence_counts(interaction.guild)
+            embed = discord.Embed(
+                title="📡 لوحة البرودكاست",
+                description="يمكنك التحكم في البوت عن طريق الأزرار",
+                color=discord.Color.teal(),
+            )
+            embed.add_field(
+                name="عدد البوتات المسجلة حاليا",
+                value=f"**```{len(tokens)} من البوتات```**",
+                inline=False,
+            )
+            embed.add_field(
+                name="رسالة البرودكاست الحالية",
+                value=f"**```{text}```**",
+                inline=False,
+            )
+            embed.add_field(name="👥 الأعضاء", value=f"**`{total}`**", inline=True)
+            embed.add_field(name="🟢 أونلاين", value=f"**`{online}`**", inline=True)
+            embed.add_field(name="⚫ أوفلاين", value=f"**`{offline}`**", inline=True)
+            panel_message = await interaction.followup.send(
+                embed=embed,
+                view=BroadcastPanelView(self),
+                wait=True,
+            )
+            await Storage.update_guild(
+                interaction.guild.id,
+                TOKEN_SECTION,
+                {
+                    "message_id": panel_message.id,
+                    "channel_id": interaction.channel.id,
+                },
+            )
+            # محاولة حذف القديمة بعد الإرسال
+            if old_message_id and old_channel_id and (
+                old_message_id != panel_message.id
+                or old_channel_id != interaction.channel.id
+            ):
+                old_channel = interaction.guild.get_channel(int(old_channel_id))
+                if old_channel is not None:
+                    try:
+                        old_message = await asyncio.wait_for(
+                            old_channel.fetch_message(int(old_message_id)),
+                            timeout=5,
+                        )
+                        await old_message.delete()
+                    except Exception:
+                        pass
+        except Exception as e:
+            logger.exception("send-broadcast-panel failed")
+            try:
+                await interaction.followup.send(
+                    f"❌ فشل إرسال البانل: `{type(e).__name__}: {e}`",
+                    ephemeral=True,
+                )
+            except Exception:
+                pass
 
     @app_commands.command(
         name="whitelist-borad",
@@ -1338,23 +1330,34 @@ class BroadcastSystem(commands.Cog):
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(manage_guild=True)
     async def refresh_broad(self, interaction: discord.Interaction):
-        await interaction.response.defer(ephemeral=True)
-        guild = interaction.guild
-        if guild is None:
-            await interaction.followup.send("الأمر داخل سيرفر فقط.", ephemeral=True)
-            return
-        total, online, offline = await _fresh_presence_counts(guild)
+        if not interaction.response.is_done():
+            await interaction.response.defer(ephemeral=True)
         try:
-            await self._refresh_panel(interaction)
-        except Exception:
-            pass
-        text = (
-            f"✅ تم التحديث من ديسكورد"
-            f"{chr(10)}👥 الأعضاء: **{total}**"
-            f"{chr(10)}🟢 أونلاين: **{online}**"
-            f"{chr(10)}⚫ أوفلاين: **{offline}**"
-        )
-        await interaction.followup.send(text, ephemeral=True)
+            guild = interaction.guild
+            if guild is None:
+                await interaction.followup.send("الأمر داخل سيرفر فقط.", ephemeral=True)
+                return
+            total, online, offline = _guild_presence_counts(guild)
+            try:
+                await asyncio.wait_for(self._refresh_panel(interaction), timeout=10)
+            except Exception as e:
+                logger.warning("refresh panel: %s", e)
+            text = (
+                f"✅ تم التحديث"
+                f"{chr(10)}👥 الأعضاء: **{total}**"
+                f"{chr(10)}🟢 أونلاين: **{online}**"
+                f"{chr(10)}⚫ أوفلاين: **{offline}**"
+            )
+            await interaction.followup.send(text, ephemeral=True)
+        except Exception as e:
+            logger.exception("refresh-broad failed")
+            try:
+                await interaction.followup.send(
+                    f"❌ فشل التحديث: `{type(e).__name__}: {e}`",
+                    ephemeral=True,
+                )
+            except Exception:
+                pass
 
 
 async def setup(bot: commands.Bot):

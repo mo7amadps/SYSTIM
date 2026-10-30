@@ -54,69 +54,6 @@ RATE_LIMIT_ACTIONS = {
     discord.AuditLogAction.role_delete,
 }
 
-# عتبة خاصة لـ Mass Ban / Mass Kick (أسرع من العتبة العامة)
-MASS_BAN_COUNT = 3
-MASS_BAN_WINDOW = 20  # ثانية
-MASS_KICK_COUNT = 4
-MASS_KICK_WINDOW = 20
-
-
-class SecurityRestoreView(discord.ui.View):
-    """أزرار استرجاع سريع بعد Mass Ban / تجاوز عتبة."""
-
-    def __init__(self, cog: "SecuritySystem", guild_id: int, incident_id: str, victim_ids: list[int], action: str):
-        super().__init__(timeout=3600)  # ساعة
-        self.cog = cog
-        self.guild_id = guild_id
-        self.incident_id = incident_id
-        self.victim_ids = list(victim_ids)[:25]  # حد أزرار ديسكورد
-        self.action = action  # "ban" | "kick"
-
-    async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        if not interaction.guild or interaction.guild.id != self.guild_id:
-            await interaction.response.send_message("❌ هالزر مش لهالسيفر.", ephemeral=True)
-            return False
-        if not interaction.user.guild_permissions.administrator and interaction.user.id != interaction.guild.owner_id:
-            await interaction.response.send_message("❌ للأدمن فقط.", ephemeral=True)
-            return False
-        return True
-
-    @discord.ui.button(label="إلغاء باند الضحايا", emoji="🔓", style=discord.ButtonStyle.success)
-    async def unban_victims(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.action != "ban":
-            await interaction.response.send_message("ℹ️ هالحادثة مش باند جماعي.", ephemeral=True)
-            return
-        await interaction.response.defer(ephemeral=True)
-        guild = interaction.guild
-        ok, fail = 0, 0
-        for uid in self.victim_ids:
-            try:
-                user = await self.cog.bot.fetch_user(uid)
-                await guild.unban(user, reason=f"استرجاع تلقائي بعد Mass Ban — بواسطة {interaction.user}")
-                ok += 1
-            except (discord.NotFound, discord.Forbidden, discord.HTTPException):
-                fail += 1
-        for child in self.children:
-            child.disabled = True
-        try:
-            await interaction.message.edit(view=self)
-        except discord.HTTPException:
-            pass
-        await interaction.followup.send(
-            f"✅ تم فك الباند عن **{ok}** عضو" + (f" — فشل: {fail}" if fail else "") + ".",
-            ephemeral=True,
-        )
-
-    @discord.ui.button(label="تم المعالجة", emoji="✅", style=discord.ButtonStyle.secondary)
-    async def mark_done(self, interaction: discord.Interaction, button: discord.ui.Button):
-        for child in self.children:
-            child.disabled = True
-        await interaction.response.edit_message(view=self)
-        try:
-            await interaction.followup.send("✅ تم تعليم الحادثة كمعالَجة.", ephemeral=True)
-        except discord.HTTPException:
-            pass
-
 
 class SecuritySystem(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -124,10 +61,6 @@ class SecuritySystem(commands.Cog):
         self._known_webhooks: dict[int, set[int]] = {}
         self._known_webhooks_ready = False
         self._action_timestamps: dict[tuple, list] = {}  # (guild_id, executor_id) -> [monotonic timestamps]
-        # تتبع ضحايا الباند/الكيك الأخيرة لكل منفّذ — للاسترجاع السريع
-        # (guild_id, executor_id) -> list[{"user_id": int, "action": "ban"|"kick", "ts": float}]
-        self._recent_victims: dict[tuple, list] = {}
-        self._incident_counter = 0
 
     async def _populate_known_webhooks(self, guild: discord.Guild):
         """يعمل بيسلاين لكل الويب هوكس الموجودة أصلاً بالسيرفر، حتى ما ينعتبروا 'جداد' غلط."""
@@ -152,15 +85,7 @@ class SecuritySystem(commands.Cog):
 
     # ---------------- أدوات مساعدة مشتركة ----------------
 
-    async def send_log(
-        self,
-        guild: discord.Guild,
-        subsection: str,
-        fields: dict,
-        *,
-        view: discord.ui.View | None = None,
-        title: str = "🛡️ سجل حماية",
-    ):
+    async def send_log(self, guild: discord.Guild, subsection: str, fields: dict):
         conf = await Storage.get_guild(guild.id)
         channel_id = conf["security"][subsection].get("log_channel_id")
         if not channel_id:
@@ -168,35 +93,13 @@ class SecuritySystem(commands.Cog):
         channel = guild.get_channel(channel_id)
         if not channel:
             return
-        embed = branded_embed(title=title, color=discord.Color.red(), timestamp=discord.utils.utcnow())
+        embed = branded_embed(title="🛡️ سجل حماية", color=discord.Color.red(), timestamp=discord.utils.utcnow())
         for name, value in fields.items():
-            embed.add_field(name=name, value=str(value)[:1024], inline=False)
+            embed.add_field(name=name, value=str(value), inline=False)
         try:
-            await channel.send(embed=embed, view=view)
+            await channel.send(embed=embed)
         except discord.Forbidden:
             pass
-
-    def _track_victim(self, guild_id: int, executor_id: int, user_id: int, action: str):
-        """يسجّل ضحية باند/كيك لاسترجاعها لاحقاً."""
-        key = (guild_id, executor_id)
-        now = time.monotonic()
-        bucket = self._recent_victims.setdefault(key, [])
-        bucket.append({"user_id": int(user_id), "action": action, "ts": now})
-        # نحتفظ بآخر دقيقتين فقط
-        cutoff = now - 120
-        self._recent_victims[key] = [v for v in bucket if v["ts"] >= cutoff][-50:]
-
-    def _get_recent_victims(self, guild_id: int, executor_id: int, action: str, window: float = 30.0) -> list[int]:
-        key = (guild_id, executor_id)
-        now = time.monotonic()
-        cutoff = now - window
-        ids = []
-        seen = set()
-        for v in self._recent_victims.get(key, []):
-            if v["ts"] >= cutoff and v["action"] == action and v["user_id"] not in seen:
-                seen.add(v["user_id"])
-                ids.append(v["user_id"])
-        return ids
 
 
     async def alert_owner_and_top(self, guild: discord.Guild, text: str, title: str = "🚨 تنبيه حماية — محاولة تهكير"):
@@ -651,7 +554,7 @@ class SecuritySystem(commands.Cog):
             + (f"\n- تم طرد {executor.mention}" if executor else ""),
         )
 
-    # ---------------- 8) نظام العتبة (Rate Limit) + Mass Ban/Kick ----------------
+    # ---------------- 8) نظام العتبة (Rate Limit) للإجراءات الخطيرة ----------------
 
     async def _handle_rate_limit_audit(self, entry: discord.AuditLogEntry):
         if entry.action not in RATE_LIMIT_ACTIONS:
@@ -671,132 +574,35 @@ class SecuritySystem(commands.Cog):
         if self._is_exempt(guild, executor, "rate_limit", conf):
             return
 
-        # تتبّع ضحايا الباند/الكيك للاسترجاع السريع
-        target_id = None
-        if entry.target is not None and hasattr(entry.target, "id"):
-            target_id = entry.target.id
-        if entry.action == discord.AuditLogAction.ban and target_id:
-            self._track_victim(guild.id, executor.id, target_id, "ban")
-        elif entry.action == discord.AuditLogAction.kick and target_id:
-            self._track_victim(guild.id, executor.id, target_id, "kick")
-
         key = (guild.id, executor.id)
         now = time.monotonic()
         timestamps = self._action_timestamps.setdefault(key, [])
         timestamps.append(now)
 
-        threshold_seconds = int(sec.get("threshold_seconds") or 15)
-        threshold_count = int(sec.get("threshold_count") or 5)
+        threshold_seconds = sec.get("threshold_seconds") or 15
+        threshold_count = sec.get("threshold_count") or 5
         cutoff = now - threshold_seconds
         timestamps[:] = [t for t in timestamps if t >= cutoff]
-
-        # --- Mass Ban (عتبة أسرع) ---
-        if entry.action == discord.AuditLogAction.ban:
-            ban_victims = self._get_recent_victims(guild.id, executor.id, "ban", MASS_BAN_WINDOW)
-            if len(ban_victims) >= MASS_BAN_COUNT:
-                await self._trigger_mass_protection(
-                    guild, executor, conf, "ban", ban_victims, timestamps
-                )
-                return
-
-        # --- Mass Kick ---
-        if entry.action == discord.AuditLogAction.kick:
-            kick_victims = self._get_recent_victims(guild.id, executor.id, "kick", MASS_KICK_WINDOW)
-            if len(kick_victims) >= MASS_KICK_COUNT:
-                await self._trigger_mass_protection(
-                    guild, executor, conf, "kick", kick_victims, timestamps
-                )
-                return
 
         if len(timestamps) < threshold_count:
             return
 
-        timestamps.clear()
+        timestamps.clear()  # نصفّرها حتى ما يتكرر العقاب مع كل إجراء جاي بعد الحجر
 
         executor_member = guild.get_member(executor.id)
         if executor_member:
             await self.punish(guild, executor_member, "rate_limit")
 
-        victims_ban = self._get_recent_victims(guild.id, executor.id, "ban", threshold_seconds + 5)
-        victims_kick = self._get_recent_victims(guild.id, executor.id, "kick", threshold_seconds + 5)
-        view = None
-        incident_note = ""
-        if victims_ban:
-            self._incident_counter += 1
-            iid = f"{guild.id}-{self._incident_counter}"
-            view = SecurityRestoreView(self, guild.id, iid, victims_ban, "ban")
-            mentions = ", ".join(f"<@{u}>" for u in victims_ban[:15])
-            if len(victims_ban) > 15:
-                mentions += f" +{len(victims_ban) - 15}"
-            incident_note = f"\n**ضحايا الباند الأخيرة:** {mentions}"
-
-        await self.send_log(
-            guild,
-            "rate_limit",
-            {
-                "العملية": "🚨 تجاوز حد الإجراءات الخطيرة (احتمال اختراق حساب)",
-                "الحساب": f"{executor.mention} (`{executor.id}`)",
-                "آخر إجراء": str(entry.action),
-                "العتبة": f"{threshold_count} إجراءات خلال {threshold_seconds} ثانية",
-                "التفاصيل": incident_note or "—",
-            },
-            view=view,
-            title="🛡️ سجل حماية — تجاوز العتبة",
-        )
+        await self.send_log(guild, "rate_limit", {
+            "العملية": "🚨 تجاوز حد الإجراءات الخطيرة (احتمال اختراق حساب)",
+            "الحساب": executor.mention,
+            "آخر إجراء": str(entry.action),
+            "العتبة": f"{threshold_count} إجراءات خلال {threshold_seconds} ثانية",
+        })
         await self.notify_role(
             guild, "rate_limit",
             f"🚨 تم حجر {executor.mention} تلقائياً - سوى إجراءات خطيرة كتيرة (باند/كيك/حذف) بوقت قصير جداً، "
             "احتمال كبير حسابه مخترق.",
-        )
-
-    async def _trigger_mass_protection(
-        self,
-        guild: discord.Guild,
-        executor: discord.User | discord.Member,
-        conf: dict,
-        action: str,
-        victims: list[int],
-        timestamps: list,
-    ):
-        """عقاب فوري + لوق واضح + زر استرجاع عند Mass Ban / Mass Kick."""
-        timestamps.clear()
-        executor_member = guild.get_member(executor.id)
-        if executor_member:
-            await self.punish(guild, executor_member, "rate_limit")
-
-        self._incident_counter += 1
-        iid = f"{guild.id}-{self._incident_counter}"
-        view = SecurityRestoreView(self, guild.id, iid, victims, action) if action == "ban" else None
-
-        label = "باند جماعي (Mass Ban)" if action == "ban" else "كيك جماعي (Mass Kick)"
-        mentions = ", ".join(f"<@{u}>" for u in victims[:20])
-        if len(victims) > 20:
-            mentions += f" … +{len(victims) - 20}"
-
-        await self.send_log(
-            guild,
-            "rate_limit",
-            {
-                "العملية": f"🚨 {label}",
-                "الحساب المنفّذ": f"{executor.mention} (`{executor.id}`)",
-                "عدد الضحايا": str(len(victims)),
-                "الضحايا": mentions,
-                "الوقت": f"خلال ~{MASS_BAN_WINDOW if action == 'ban' else MASS_KICK_WINDOW} ثانية",
-                "الإجراء": "تم سجن المنفّذ تلقائياً" + (" — استخدم الزر لفك باند الضحايا" if action == "ban" else ""),
-            },
-            view=view,
-            title=f"🛡️ سجل حماية — {label}",
-        )
-        await self.notify_role(
-            guild,
-            "rate_limit",
-            f"🚨 **{label}** من {executor.mention} — {len(victims)} ضحية. تم الحجر تلقائياً.",
-        )
-        await self.alert_owner_and_top(
-            guild,
-            f"**{label}**\nالمنفّذ: {executor.mention} (`{executor.id}`)\nعدد الضحايا: {len(victims)}\n"
-            + ("افتح قناة اللوق واضغط زر فك الباند إذا لزم." if action == "ban" else ""),
-            title=f"🚨 تنبيه — {label}",
         )
 
     # ---------------- نقطة استقبال موحّدة لكل أحداث الـ Audit Log ----------------

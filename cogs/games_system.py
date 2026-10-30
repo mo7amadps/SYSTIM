@@ -51,44 +51,408 @@ PLAYERS = [
 ]
 
 QUESTIONS = [
-    # أسئلة نقاش مفتوحة — أي جواب يُحسب (أول واحد يفوز)
-    ("شو أكثر موقف خلاك ندمان؟", ["*"]),
-    ("لو يرجع فيك الزمن، أي قرار تغيّره؟", ["*"]),
-    ("وش أجمل ذكرى عندك؟", ["*"]),
-    ("لو عندك يوم واحد فقط، وش تسوي فيه؟", ["*"]),
-    ("وش الشي اللي ما تقدر تعيش بدونه؟", ["*"]),
-    ("تصف يومك المثالي بكلمتين؟", ["*"]),
-    ("مين الشخص اللي أثّر فيك أكثر شي؟", ["*"]),
-    ("وش أكبر درس تعلمته هالسنة؟", ["*"]),
-    ("لو تسافر الحين لمكان واحد، وين؟", ["*"]),
-    ("وش أكتر صفة تحبها بنفسك؟", ["*"]),
-    ("لو تكتب رسالة لنسخة أصغر منك، وش تقول؟", ["*"]),
-    ("وش الموقف اللي ضحكت فيه لين دمعت؟", ["*"]),
-    ("تفضّل البحر ولا الجبل؟ وليش؟", ["*"]),
-    ("وش عاداتك اليومية اللي ما تفرّط فيها؟", ["*"]),
-    ("لو تصير مشهور، بشو؟", ["*"]),
-    ("وش أكثر أغنية تمثّلك الحين؟", ["*"]),
-    ("لو عندك قوة خارقة واحدة، وش تختار؟", ["*"]),
-    ("تصف نفسك بثلاث كلمات؟", ["*"]),
-    ("وش الشي اللي الناس ما تعرفه عنك؟", ["*"]),
-    ("لو تعيد اختيار تخصصك/شغلك، تختار نفس الشي؟", ["*"]),
-    ("وش أسوأ نصيحة سمعتها؟", ["*"]),
-    ("متى آخر مرة جربت شي جديد؟", ["*"]),
-    ("وش يخليك سعيد بسرعة؟", ["*"]),
-    ("لو تتعشى مع شخصية مشهورة، مين؟", ["*"]),
-    ("وش أكثر خوف تبغى تتغلب عليه؟", ["*"]),
+    # 400 سؤال كت — نقاش مفتوح (أي جواب يُحسب لأول مجيب)
+    ("وش أكثر شيء يضحكك بسرعة؟", ["*"]),
+    ("وش أول شيء تسويه لما تصحى؟", ["*"]),
+    ("وش الأكلة اللي ما تمل منها؟", ["*"]),
+    ("لو عندك يوم إجازة مفتوح، وش تسوي؟", ["*"]),
+    ("أكثر كلمة تكررها في كلامك؟", ["*"]),
+    ("وش لقبك المفضل؟", ["*"]),
+    ("قهوة ولا شاي؟", ["*"]),
+    ("بحر ولا بر؟", ["*"]),
+    ("وش أغرب هواية عندك؟", ["*"]),
+    ("وش آخر شيء ضحكت عليه من قلب؟", ["*"]),
+    ("أكثر تطبيق تستخدمه؟", ["*"]),
+    ("وش أجمل صفة في شخصيتك؟", ["*"]),
+    ("وش العيب اللي تتمنى تتخلص منه؟", ["*"]),
+    ("وش أول شيء تلاحظه في الشخص اللي تقابله؟", ["*"]),
     ("تحب الصباح ولا الليل؟", ["*"]),
-    ("وش كتاب أو فيلم غيّر نظرتك؟", ["*"]),
-    ("لو تخترع تطبيق، عن أيش؟", ["*"]),
-    ("وش أكتر مكان ترتاح فيه؟", ["*"]),
-    ("لو تقول نصيحة لشخص غريب، وش تقول؟", ["*"]),
+    ("وش أكثر موسم تحبه؟", ["*"]),
+    ("وش أكثر لون يمثلك؟", ["*"]),
+    ("لو كنت حيوان، وش تكون؟", ["*"]),
+    ("وش الأغنية اللي ما تمل منها؟", ["*"]),
+    ("كم ساعة تنام عادةً؟", ["*"]),
+    ("وش أكثر شيء يستفزك؟", ["*"]),
+    ("وش أحسن نصيحة جاتك في حياتك؟", ["*"]),
+    ("وش أول شيء تشتريه لو صار معك مليون؟", ["*"]),
+    ("تفضل الجلسات الهادية ولا الصاخبة؟", ["*"]),
+    ("وش أكثر مكان تحس فيه براحة؟", ["*"]),
+    ("وش الشيء اللي تتقنه وما أحد يدري؟", ["*"]),
+    ("وش أكثر جملة تنقال لك دايماً؟", ["*"]),
+    ("وش عادتك الغريبة؟", ["*"]),
+    ("تحب تتكلم ولا تسمع؟", ["*"]),
+    ("وش وصف يومك المثالي بكلمة؟", ["*"]),
+    ("وش أجمل ذكرى من طفولتك؟", ["*"]),
+    ("وش أكثر موقف محرج صار لك؟", ["*"]),
+    ("وش أول جوال استخدمته؟", ["*"]),
+    ("وش أكثر لعبة كنت تلعبها وأنت صغير؟", ["*"]),
+    ("من أول صديق لك في المدرسة؟", ["*"]),
+    ("وش أحلى مناسبة حضرتها؟", ["*"]),
+    ("أكثر هدية ما تنساها؟", ["*"]),
+    ("وش أسوأ هدية جاتك؟", ["*"]),
+    ("وش أطرف موقف صار لك في المدرسة؟", ["*"]),
+    ("أول سفرة سافرتها لوحدك؟", ["*"]),
+    ("وش أكثر شيء تشتاق له من الماضي؟", ["*"]),
+    ("وش أحلى عيد مر عليك؟", ["*"]),
+    ("من أكثر شخص أثر فيك؟", ["*"]),
+    ("وش أول شيء اشتريته من مصروفك؟", ["*"]),
+    ("وش الكرتون اللي كنت تتابعه؟", ["*"]),
+    ("وش أكثر شيء ندمت عليه؟", ["*"]),
+    ("وش أجمل رسالة وصلتك؟", ["*"]),
+    ("موقف بكيت فيه من الضحك؟", ["*"]),
+    ("وش أكثر عقاب تذكره من أهلك؟", ["*"]),
+    ("وش أحلى رحلة مدرسية؟", ["*"]),
+    ("وش الشيء اللي كنت تخاف منه وأنت صغير؟", ["*"]),
+    ("أول مرة وقفت فيها على المسرح؟", ["*"]),
+    ("وش أحلى سهرة مرت عليك؟", ["*"]),
+    ("وش أكثر كذبة كذبتها وأنت صغير؟", ["*"]),
+    ("وش اللعبة اللي كنت تحلم تملكها؟", ["*"]),
+    ("وش أحسن يوم في حياتك لين الحين؟", ["*"]),
+    ("وش الشيء اللي تتمنى ترجع له؟", ["*"]),
+    ("وش أول شغلة عملتها بحياتك؟", ["*"]),
+    ("من آخر شخص فاجأك بشيء حلو؟", ["*"]),
+    ("وش أطرف اسم عرفته؟", ["*"]),
+    ("وش رأيك بالأعراس الكبيرة ولا الصغيرة؟", ["*"]),
+    ("وش أهم شيء يخلي الفرح ناجح؟", ["*"]),
+    ("أحلى زفة شفتها؟", ["*"]),
+    ("وش أكثر شيء يزعجك في المناسبات؟", ["*"]),
+    ("تحب تكون ضيف ولا صاحب المناسبة؟", ["*"]),
+    ("وش أجمل هدية تعطيها في الزواج؟", ["*"]),
+    ("وش رأيك بالتصوير في المناسبات؟", ["*"]),
+    ("أي وقت أحسن للمناسبات: نهار ولا ليل؟", ["*"]),
+    ("وش أفضل أكلة تنقدم في الحفلات؟", ["*"]),
+    ("وش أطرف موقف صار لك في عرس؟", ["*"]),
+    ("هل تحب الرقص في المناسبات؟", ["*"]),
+    ("وش لبسك المفضل في المناسبات؟", ["*"]),
+    ("تفضل تحضر ولا تعتذر؟", ["*"]),
+    ("وش أكثر شيء تستحي منه في المناسبات؟", ["*"]),
+    ("وش رأيك بالمفاجآت في الأعياد؟", ["*"]),
+    ("كيف تحتفل بعيد ميلادك؟", ["*"]),
+    ("هدية عيد الميلاد المثالية بنظرك؟", ["*"]),
+    ("وش أحلى حفلة تخرج حضرتها؟", ["*"]),
+    ("وش أكثر كلمة تنقال في التهنئة وتعجبك؟", ["*"]),
+    ("من أول شخص تتصل عليه لما تفرح؟", ["*"]),
+    ("وش أول شيء تسويه لما تنجح؟", ["*"]),
+    ("لو تنظم حفلة، وش الثيم؟", ["*"]),
+    ("أحلى مكان لعقد المناسبات؟", ["*"]),
+    ("وش رأيك بالعزائم الكبيرة؟", ["*"]),
+    ("كم شخص تحب يحضر مناسبتك؟", ["*"]),
+    ("وش أحسن سوالف سمعتها في مناسبة؟", ["*"]),
+    ("وش تتمنى يتغير في المناسبات؟", ["*"]),
+    ("تحب المناسبات العائلية ولا مع الأصدقاء؟", ["*"]),
+    ("وش أجمل لحظة في المناسبات؟", ["*"]),
+    ("وش الشيء اللي دايماً ينسونه في الحفلات؟", ["*"]),
+    ("وش أول شيء تاكله على الفطور؟", ["*"]),
+    ("أحلى مسلسل رمضاني شفته؟", ["*"]),
+    ("كيف تقضي وقتك بعد التراويح؟", ["*"]),
+    ("وش أحب أكلة رمضانية لك؟", ["*"]),
+    ("تحب السحور ولا الفطور أكثر؟", ["*"]),
+    ("وش أحلى عادة رمضانية عندكم؟", ["*"]),
+    ("وش أكثر شيء تشتاق له في رمضان؟", ["*"]),
+    ("وش أحلى ذكرى عيد؟", ["*"]),
+    ("كم عيدية تحصل وأنت صغير؟", ["*"]),
+    ("وش أكثر شيء تحب تسويه ليلة العيد؟", ["*"]),
+    ("وش لبسك في العيد؟", ["*"]),
+    ("من أول شخص تهنيه بالعيد؟", ["*"]),
+    ("وش رأيك بالعيدية للكبار؟", ["*"]),
+    ("حلوى العيد المفضلة؟", ["*"]),
+    ("وين تقضي العيد غالباً؟", ["*"]),
+    ("وش أكثر شيء يميز عيدكم؟", ["*"]),
+    ("تفضل العيد بالبيت ولا السفر؟", ["*"]),
+    ("أول شيء تسويه صباح العيد؟", ["*"]),
+    ("أحلى تهنئة وصلتك؟", ["*"]),
+    ("وش رأيك بالقرقيعان وعادات الأطفال؟", ["*"]),
+    ("وش أطرف موقف صار في رمضان؟", ["*"]),
+    ("أكثر شيء تتمنى تختمه في رمضان؟", ["*"]),
+    ("تحب تصوم لوحدك ولا مع العائلة؟", ["*"]),
+    ("مشروب رمضان المفضل؟", ["*"]),
+    ("وش أجمل ليلة في رمضان عندك؟", ["*"]),
+    ("لو خيروك بين السفر كل سنة أو بيت أحلامك؟", ["*"]),
+    ("لو تقدر تعيش في أي بلد، وين؟", ["*"]),
+    ("لو تقدر ترجع بالزمن، لأي سنة؟", ["*"]),
+    ("لو تقابل شخصية تاريخية، من؟", ["*"]),
+    ("لو عندك قدرة خارقة، وش تكون؟", ["*"]),
+    ("لو تصير مشهور، بأي مجال؟", ["*"]),
+    ("لو تأكل أكلة وحدة طول عمرك، وش تكون؟", ["*"]),
+    ("لو تقدر تغير شيء بالعالم، وش هو؟", ["*"]),
+    ("لو تصحى بكرة ثري، وش أول خطوة؟", ["*"]),
+    ("لو خيروك بين المال والصحة؟", ["*"]),
+    ("لو تعيش بجزيرة، وش تاخذ معك؟", ["*"]),
+    ("لو تقدر تتكلم أي لغة، وش تختار؟", ["*"]),
+    ("لو تغير اسمك، وش تسمي نفسك؟", ["*"]),
+    ("لو تكون مدير ليوم واحد، وش تسوي؟", ["*"]),
+    ("لو عندك آلة زمن، تروح للماضي ولا المستقبل؟", ["*"]),
+    ("لو تقابل نفسك وأنت صغير، وش تقول له؟", ["*"]),
+    ("لو تعيش بدون جوال أسبوع، تقدر؟", ["*"]),
+    ("لو يسمحون لك بسؤال واحد لأي شخص، من ووش؟", ["*"]),
+    ("لو تتحول لشخصية كرتونية، من؟", ["*"]),
+    ("لو تقدر تتقن مهارة بدقيقة، وش تختار؟", ["*"]),
+    ("لو تفتح مشروع، وش نوعه؟", ["*"]),
+    ("لو تبني مطعم، وش يقدم؟", ["*"]),
+    ("لو تسافر الحين، وين؟", ["*"]),
+    ("لو تعيش بمدينة وحدة طول حياتك، وش تختار؟", ["*"]),
+    ("لو تقدر تسمع أفكار أي شخص، تبي؟", ["*"]),
+    ("لو تعطي نصيحة للناس كلهم، وش هي؟", ["*"]),
+    ("لو تحصل على إجازة سنة، وش تسوي؟", ["*"]),
+    ("لو تكتب كتاب، وش عنوانه؟", ["*"]),
+    ("لو تقدر تحيي أحد من الماضي، من؟", ["*"]),
+    ("لو يومك 30 ساعة، كيف تستغل الساعات الزيادة؟", ["*"]),
+    ("وش صفة تحبها في الصديق؟", ["*"]),
+    ("وش أكثر شيء يخليك تزعل من الصديق؟", ["*"]),
+    ("من أكثر شخص يفهمك؟", ["*"]),
+    ("وش أحلى موقف سواه لك صديق؟", ["*"]),
+    ("كم عدد أصدقائك المقربين؟", ["*"]),
+    ("وش رأيك: الصداقة تدوم ولا تتغير؟", ["*"]),
+    ("تحب تسولف مكالمة ولا رسايل؟", ["*"]),
+    ("وش أطرف لقب ناديت فيه صديقك؟", ["*"]),
+    ("أكثر صديق يضحكك؟", ["*"]),
+    ("وش أول شيء تسويه لما صديقك يزعل؟", ["*"]),
+    ("وش الفرق بين الصديق والزميل بنظرك؟", ["*"]),
+    ("هل تحفظ الأسرار؟", ["*"]),
+    ("وش أحلى طلعة مع الشلة؟", ["*"]),
+    ("تحب تسوي مفاجأة لأصحابك؟", ["*"]),
+    ("وش أسوأ صفة في الصديق؟", ["*"]),
+    ("تعتذر أول ولا تنتظر الاعتذار؟", ["*"]),
+    ("من أكثر شخص تتصل عليه وقت الضيق؟", ["*"]),
+    ("هل تفضل الصداقات القديمة ولا الجديدة؟", ["*"]),
+    ("أحلى هدية أعطيتها لصديق؟", ["*"]),
+    ("وش اللي يقوي العلاقة بين الناس؟", ["*"]),
+    ("تعطي فرصة ثانية ولا لا؟", ["*"]),
+    ("وش رأيك بالعتاب؟", ["*"]),
+    ("أصعب شي في الصداقة؟", ["*"]),
+    ("وش أجمل كلمة سمعتها من صديق؟", ["*"]),
+    ("تحب تكون قائد الشلة ولا تتبع؟", ["*"]),
+    ("غنِّ أي مقطع الحين!", ["*"]),
+    ("قلّد صوت شخصية مشهورة.", ["*"]),
+    ("وش أغرب أكلة جربتها؟", ["*"]),
+    ("قول 3 أشياء تحبها بنفسك.", ["*"]),
+    ("اذكر 5 أشياء بالغرفة بدون ما تلف.", ["*"]),
+    ("وش أحرج رسالة أرسلتها بالغلط؟", ["*"]),
+    ("حاول تضحك أحد بدون كلام.", ["*"]),
+    ("اختر رقم من 1 إلى 10 وجاوب على سؤال بنفس الرقم.", ["*"]),
+    ("وش اللي بمحفظتك الحين؟", ["*"]),
+    ("وش آخر شيء بحثت عنه بجوجل؟", ["*"]),
+    ("وش أكثر إيموجي تستخدمه؟", ["*"]),
+    ("وش أطرف حلم شفته؟", ["*"]),
+    ("كم مرة تغير رأيك بالأكل وقت الطلب؟", ["*"]),
+    ("وش الشيء اللي تنسى مكانه دايماً؟", ["*"]),
+    ("وش آخر شيء اشتريته وما احتجته؟", ["*"]),
+    ("وش اللعبة اللي تتفوق فيها؟", ["*"]),
+    ("وش أحلى مقلب سويته؟", ["*"]),
+    ("وش أكثر مقلب انعمل فيك؟", ["*"]),
+    ("كم عمرك تشوفه بالنفسية مو بالهوية؟", ["*"]),
+    ("لو تكتب سيرتك بثلاث كلمات؟", ["*"]),
+    ("وش أكثر شيء تتأخر بسببه؟", ["*"]),
+    ("وش أول شيء تسويه لو انقطعت الكهرباء؟", ["*"]),
+    ("وش أغرب شيء بقائمة أمنياتك؟", ["*"]),
+    ("جاوب بكلمة وحدة: وش تحس الحين؟", ["*"]),
+    ("وش أكثر جملة تقولها لما تتوتر؟", ["*"]),
+    ("اذكر موقف خلاك تفتخر بنفسك.", ["*"]),
+    ("وش أطرف رسالة صوتية وصلتك؟", ["*"]),
+    ("ارسم أي شيء بخيالك واوصفه للجماعة.", ["*"]),
+    ("وش أكثر شيء ممكن يخليك تضحك بالغلط في مكان جاد؟", ["*"]),
+    ("وش أمنيتك لهالمناسبة ولكل الحاضرين؟ 🤍", ["*"]),
+    ("من أكثر فرد بالعائلة يشبهك؟", ["*"]),
+    ("وش أحلى عادة عائلية عندكم؟", ["*"]),
+    ("وش أكثر أكلة تسويها أمك وتحبها؟", ["*"]),
+    ("من أكثر شخص يضحكك بالعائلة؟", ["*"]),
+    ("وش أحلى جمعة عائلية مرت عليك؟", ["*"]),
+    ("وش النصيحة اللي ما تنساها من والدك؟", ["*"]),
+    ("كم عدد إخوانك وأخواتك؟", ["*"]),
+    ("من أكثر واحد منهم قريب منك؟", ["*"]),
+    ("وش أطرف لقب ينادونك فيه بالبيت؟", ["*"]),
+    ("وين تحب تسافر مع العائلة؟", ["*"]),
+    ("وش أكثر شيء يميز بيت جدك وجدتك؟", ["*"]),
+    ("وش أحلى قصة سمعتها من جدك أو جدتك؟", ["*"]),
+    ("أكثر موقف فخرت فيه بأحد من عائلتك؟", ["*"]),
+    ("وش الشيء اللي يزعجك في الاجتماعات العائلية؟", ["*"]),
+    ("تحب تقعد بالبيت ولا تطلع مع العائلة؟", ["*"]),
+    ("وش أكلة الجمعة المفضلة؟", ["*"]),
+    ("من الشخص اللي تستشيره بقراراتك؟", ["*"]),
+    ("وش أحلى هدية أعطيتها لأمك؟", ["*"]),
+    ("وش أكثر شيء تعلمته من أهلك؟", ["*"]),
+    ("وش أكثر جملة تقولها أمك دايماً؟", ["*"]),
+    ("وش أكثر جملة يقولها أبوك دايماً؟", ["*"]),
+    ("لو تعطي عائلتك لقب، وش يكون؟", ["*"]),
+    ("وش أحلى رحلة برية مع العائلة؟", ["*"]),
+    ("وش أكثر تقليد عائلي تتمنى يستمر؟", ["*"]),
+    ("من أكثر واحد يتأخر بالعائلة؟", ["*"]),
+    ("من أكثر واحد يحب المقالب؟", ["*"]),
+    ("وش أحلى مفاجأة سووها لك أهلك؟", ["*"]),
+    ("وش الشيء اللي تتمنى تسويه مع أهلك؟", ["*"]),
+    ("كيف تحتفلون بعيد ميلاد أحد من العائلة؟", ["*"]),
+    ("وش أغلى شيء عندك من ذكريات العائلة؟", ["*"]),
+    ("وش المادة اللي كنت تحبها بالمدرسة؟", ["*"]),
+    ("وش المادة اللي تكرهها؟", ["*"]),
+    ("من أحسن معلم درسك؟", ["*"]),
+    ("وش أطرف موقف مع معلم؟", ["*"]),
+    ("وش حلمك وأنت صغير تصير؟", ["*"]),
+    ("وش وظيفة أحلامك الحين؟", ["*"]),
+    ("تفضل الدوام الصباحي ولا المسائي؟", ["*"]),
+    ("وش أسوأ شغلة اشتغلتها؟", ["*"]),
+    ("وش أحلى زميل شغل عرفته؟", ["*"]),
+    ("تحب تشتغل لوحدك ولا ضمن فريق؟", ["*"]),
+    ("وش أكثر شيء يخليك تتحمس بالشغل؟", ["*"]),
+    ("وش أكثر شيء يطفشك بالدراسة أو الشغل؟", ["*"]),
+    ("هل سهرت قبل اختبار؟ وش صار؟", ["*"]),
+    ("وش أكثر عذر استخدمته للتأخر؟", ["*"]),
+    ("وش أول راتب أخذته ووين صرفته؟", ["*"]),
+    ("لو تكون مدير شركة، وش أول قرار؟", ["*"]),
+    ("وش المهارة اللي تتمنى تتعلمها؟", ["*"]),
+    ("وش أحسن كتاب قريته؟", ["*"]),
+    ("تفضل القراءة ولا مشاهدة الفيديو؟", ["*"]),
+    ("وش آخر شيء جديد تعلمته؟", ["*"]),
+    ("وش أصعب قرار اتخذته بمسيرتك؟", ["*"]),
+    ("وش أكثر إنجاز تفتخر فيه؟", ["*"]),
+    ("تحب الإجازات ولا الشغل؟", ["*"]),
+    ("كيف تنظم وقتك؟", ["*"]),
+    ("وش أكثر شيء تؤجله دايماً؟", ["*"]),
+    ("وش هدفك للسنة الجاية؟", ["*"]),
+    ("لو تقدر ترجع تدرس تخصص ثاني، وش تختار؟", ["*"]),
+    ("من أكثر شخص ألهمك بمسيرتك؟", ["*"]),
+    ("وش رأيك بالعمل عن بعد؟", ["*"]),
+    ("وش أطرف موقف صار لك بالاجتماع؟", ["*"]),
+    ("وش اللعبة اللي قضيت فيها ساعات طويلة؟", ["*"]),
+    ("جوال ولا كمبيوتر؟", ["*"]),
+    ("وش أول لعبة لعبتها؟", ["*"]),
+    ("وش أكثر تطبيق تقعد عليه بدون ما تحس؟", ["*"]),
+    ("كم ساعة تقضي على الجوال؟", ["*"]),
+    ("وش آخر مسلسل خلصته؟", ["*"]),
+    ("وش أحسن فيلم شفته؟", ["*"]),
+    ("تفضل السينما ولا البيت؟", ["*"]),
+    ("وش أكثر بودكاست أو قناة تتابعها؟", ["*"]),
+    ("لو تصمم لعبة، وش فكرتها؟", ["*"]),
+    ("وش أكثر لعبة تتعصب منها؟", ["*"]),
+    ("تلعب لوحدك ولا مع الشلة؟", ["*"]),
+    ("وش أغرب اسم استخدمته بلعبة؟", ["*"]),
+    ("وش أكثر شيء تكرهه في الألعاب أونلاين؟", ["*"]),
+    ("وش رأيك بالذكاء الاصطناعي؟", ["*"]),
+    ("لو تخترع تطبيق، وش يسوي؟", ["*"]),
+    ("وش أطرف ستيكر أو ميم ترسله؟", ["*"]),
+    ("وش أكثر شيء يضيع وقتك على الإنترنت؟", ["*"]),
+    ("كم مرة تغير خلفية جوالك؟", ["*"]),
+    ("وش أكثر برنامج تواصل تستخدمه؟", ["*"]),
+    ("وش آخر شيء اشتريته أونلاين؟", ["*"]),
+    ("تحب الألعاب الجماعية ولا الفردية؟", ["*"]),
+    ("وش شخصيتك المفضلة بالألعاب؟", ["*"]),
+    ("لو تعيش داخل لعبة، أي لعبة؟", ["*"]),
+    ("وش أحلى ذكرى مع لعبة؟", ["*"]),
+    ("وش أكثر شيء تتمنى يتوفر بالتقنية؟", ["*"]),
+    ("هل تقدر تعيش بدون إنترنت يوم كامل؟", ["*"]),
+    ("وش أول جوال حلمت تشتريه؟", ["*"]),
+    ("وش رأيك بالألعاب القديمة؟", ["*"]),
+    ("وش أطرف موقف صار لك أونلاين؟", ["*"]),
+    ("وش أحلى بلد زرته؟", ["*"]),
+    ("وش البلد اللي تحلم تزورها؟", ["*"]),
+    ("تفضل السفر لوحدك ولا مع أحد؟", ["*"]),
+    ("وش أول شيء تحطه بشنطة السفر؟", ["*"]),
+    ("وش أغرب أكلة شفتها بالسفر؟", ["*"]),
+    ("وش أسوأ موقف صار لك بمطار؟", ["*"]),
+    ("فندق ولا شقة؟", ["*"]),
+    ("وش أحلى مدينة مشيت فيها؟", ["*"]),
+    ("صيف ولا شتاء للسفر؟", ["*"]),
+    ("وش أكثر شيء تشتريه تذكار؟", ["*"]),
+    ("وش أكلتك المفضلة بالعالم؟", ["*"]),
+    ("مطعم ولا أكل البيت؟", ["*"]),
+    ("وش أحلى كافيه تعرفه؟", ["*"]),
+    ("حلو ولا مالح؟", ["*"]),
+    ("وش أكثر أكلة تسويها بنفسك؟", ["*"]),
+    ("تطبخ ولا تطلب؟", ["*"]),
+    ("وش الأكلة اللي ما تقدر تقاومها؟", ["*"]),
+    ("بيتزا ولا برجر؟", ["*"]),
+    ("وش أكثر مشروب تشربه؟", ["*"]),
+    ("وش أغرب خلطة أكل تحبها؟", ["*"]),
+    ("وش أحلى وجبة فطور؟", ["*"]),
+    ("وش الأكلة اللي ما تحبها أبداً؟", ["*"]),
+    ("من أحسن طباخ تعرفه؟", ["*"]),
+    ("وش أحلى عزيمة حضرتها؟", ["*"]),
+    ("وش أحلى حلى جربته؟", ["*"]),
+    ("وش رأيك بالمطاعم الفخمة؟", ["*"]),
+    ("كباب ولا مشاوي؟", ["*"]),
+    ("وش أول أكلة تعلمت تسويها؟", ["*"]),
+    ("وش أكثر أكلة تفكرك بطفولتك؟", ["*"]),
+    ("لو تفتح كافيه، وش تسميه؟", ["*"]),
+    ("وش أكبر خوف عندك؟", ["*"]),
+    ("وش أكثر شيء تتمنى تغيره بنفسك؟", ["*"]),
+    ("وش معنى السعادة عندك؟", ["*"]),
+    ("وش أهم قيمة بحياتك؟", ["*"]),
+    ("وش أصعب فترة مرت عليك وكيف تجاوزتها؟", ["*"]),
+    ("وش الشيء اللي تتمنى لو عرفته من بدري؟", ["*"]),
+    ("هل تؤمن بالحظ؟", ["*"]),
+    ("وش أكثر شيء تتمنى تحققه قبل ما تكبر؟", ["*"]),
+    ("وش رأيك: النجاح مال ولا راحة بال؟", ["*"]),
+    ("هل تسامح بسرعة؟", ["*"]),
+    ("وش أكثر شيء يخليك تحس بالامتنان؟", ["*"]),
+    ("وش أحسن قرار اتخذته؟", ["*"]),
+    ("وش أسوأ قرار اتخذته وش تعلمت منه؟", ["*"]),
+    ("وش الشيء اللي تتمنى الناس تفهمه عنك؟", ["*"]),
+    ("هل تحب نفسك بالكامل؟", ["*"]),
+    ("وش نصيحتك لنفسك بعد 10 سنين؟", ["*"]),
+    ("وش أكثر شيء يخليك مرتاح نفسياً؟", ["*"]),
+    ("هل تؤمن بالقدر؟", ["*"]),
+    ("وش الشيء اللي تحس إنه رسالتك بالحياة؟", ["*"]),
+    ("وش أحلى شعور جربته؟", ["*"]),
+    ("وش أكثر شيء تخاف تخسره؟", ["*"]),
+    ("كيف تتعامل مع الضغوط؟", ["*"]),
+    ("وش أكثر شخص تحترمه ولماذا؟", ["*"]),
+    ("الأفضل تعيش للحاضر ولا تخطط للمستقبل؟", ["*"]),
+    ("وش أكثر شيء تعلمته من أخطائك؟", ["*"]),
+    ("وش الصفة اللي تحترمها بالناس؟", ["*"]),
+    ("وش الشيء الصغير اللي يسعدك؟", ["*"]),
+    ("لو تعطي وصية لأولادك، وش تكون؟", ["*"]),
+    ("وش تتمنى يقولون عنك بعد عمر طويل؟", ["*"]),
+    ("وش أجمل شيء بحياتك الحين؟", ["*"]),
+    ("هل تفضل تعرف المستقبل ولا تغير الماضي؟", ["*"]),
+    ("هل تفضل تطير ولا تصير مخفي؟", ["*"]),
+    ("هل تفضل تعيش بالبحر ولا بالجبل؟", ["*"]),
+    ("هل تفضل تكون غني ومشغول ولا متوسط وفاضي؟", ["*"]),
+    ("هل تفضل تسافر دايماً ولا تستقر؟", ["*"]),
+    ("هل تفضل صديق صريح ولا مجامل؟", ["*"]),
+    ("هل تفضل تنسى كل شيء ولا تتذكر كل شيء؟", ["*"]),
+    ("هل تفضل تعيش بالماضي ولا بالمستقبل؟", ["*"]),
+    ("هل تفضل ما تنام أبداً ولا تنام طول الوقت؟", ["*"]),
+    ("هل تفضل تتكلم كل اللغات ولا تعزف كل الآلات؟", ["*"]),
+    ("هل تفضل شهرة كبيرة ولا خصوصية كاملة؟", ["*"]),
+    ("هل تفضل تأكل حلو بس ولا مالح بس؟", ["*"]),
+    ("هل تفضل صيف دايم ولا شتاء دايم؟", ["*"]),
+    ("هل تفضل بيت كبير بعيد ولا صغير بقلب المدينة؟", ["*"]),
+    ("هل تفضل تقرأ أفكار الناس ولا تتحكم بالوقت؟", ["*"]),
+    ("هل تفضل تخسر جوالك ولا محفظتك؟", ["*"]),
+    ("هل تفضل شغل بشغفك براتب قليل ولا شغل ممل براتب عالي؟", ["*"]),
+    ("هل تفضل تسولف مع صديق قديم ولا تتعرف على جديد؟", ["*"]),
+    ("هل تفضل الصراحة المؤلمة ولا الكذبة الحلوة؟", ["*"]),
+    ("هل تفضل الهدية ولا المفاجأة؟", ["*"]),
+    ("هل تفضل حياة هادية ولا مليانة مغامرات؟", ["*"]),
+    ("هل تفضل ما تستخدم الجوال شهر ولا ما تاكل برا شهر؟", ["*"]),
+    ("هل تفضل تكون الأذكى ولا الأجمل؟", ["*"]),
+    ("هل تفضل تتأخر دايماً ولا تجي بدري بزيادة؟", ["*"]),
+    ("هل تفضل حفلة كبيرة ولا جلسة صغيرة؟", ["*"]),
+    ("هل تفضل تسوي مقلب ولا تنعمل فيك؟", ["*"]),
+    ("هل تفضل قهوة بدون سكر ولا شاي بدون نعناع؟", ["*"]),
+    ("هل تفضل الصيد ولا التخييم؟", ["*"]),
+    ("هل تفضل سيارة سريعة ولا مريحة؟", ["*"]),
+    ("هل تفضل تعيش في عصر الأجداد ولا بعد 100 سنة؟", ["*"]),
+    ("قل \"سيارة سريعة سارت سريعاً\" ثلاث مرات بسرعة بدون غلط.", ["*"]),
+    ("مثّل مشهد بدون كلام والجماعة يخمنون.", ["*"]),
+    ("احكِ نكتة تضحك الجميع.", ["*"]),
+    ("اذكر 5 دول تبدأ بحرف الميم.", ["*"]),
+    ("اذكر 5 أكلات خليجية في 15 ثانية.", ["*"]),
+    ("قلّد طريقة كلام أحد من الحضور.", ["*"]),
+    ("غمّض عينك ووصف شكل أقرب شخص لك.", ["*"]),
+    ("اذكر 10 حيوانات في 20 ثانية.", ["*"]),
+    ("غنِّ مقطع من أغنية قديمة.", ["*"]),
+    ("قل مدح لكل شخص بالجلسة.", ["*"]),
+    ("تكلم 30 ثانية عن أي شيء بدون توقف.", ["*"]),
+    ("ارسم وجه أحد الحاضرين والباقي يخمنون.", ["*"]),
+    ("قل 3 أشياء مشتركة بينك وبين الشخص اللي جنبك.", ["*"]),
+    ("اذكر 5 أسماء تبدأ بحرف الراء.", ["*"]),
+    ("اختر شخص وقل له كلمة حلوة.", ["*"]),
+    ("تكلم بلهجة غير لهجتك لمدة دقيقة.", ["*"]),
+    ("اذكر 5 مدن عربية بدون تفكير.", ["*"]),
+    ("رتب 5 أشياء تحبها من الأهم للأقل.", ["*"]),
+    ("قل أحلى ذكرى جمعتك بالحاضرين.", ["*"]),
+    ("وش دعاؤك لكل الحاضرين؟ 🤍", ["*"]),
 ]
-
-# وسّع الأسئلة بتكرار أنماط بسيطة إلى ~120+
-for i in range(2, 51):
-    QUESTIONS.append((f"ما ناتج {i}+{i}؟", [str(i * 2)]))
-for i in range(2, 21):
-    QUESTIONS.append((f"ما ناتج {i}×{i}؟", [str(i * i)]))
 
 REPLICA_CATS = ["اسم", "حيوان", "جماد", "نبات", "بلاد"]
 ARABIC_LETTERS = list("أاببتثجحخدذرزسشصضطظعغفقكلمنهوية")
@@ -177,46 +541,20 @@ async def _can_start(member: discord.Member, game_key: str) -> bool:
 
 
 async def _can_stop(member: discord.Member, game_key: str | None = None) -> bool:
-    """من يقدر يوقف اللعبة: أدمن أو رتب الإيقاف أو رتب البدء (إن ما تحدد إيقاف)."""
+    """أدمن أو رتب إيقاف العامة (فردي/جماعي) أو رتب البدء إن ما تحدد إيقاف."""
     if member.guild_permissions.administrator or member.guild_permissions.manage_guild:
         return True
     if member.guild.owner_id == member.id:
         return True
     cfg = await _cfg(member.guild.id)
-    roles_map = cfg.get("stopper_roles") or {}
-    allowed = []
-    if game_key:
-        allowed = roles_map.get(game_key) or []
-    if not allowed:
-        allowed = roles_map.get("all") or []
-    # إذا ما في رتب إيقاف، استخدم رتب البدء
-    if not allowed:
-        sm = cfg.get("starter_roles") or {}
-        if game_key:
-            allowed = sm.get(game_key) or []
-        if not allowed:
-            allowed = sm.get("all") or []
+    key = game_key or ""
+    allowed = _role_ids_allowed(cfg, key, "stopper") if key else []
+    if not allowed and key:
+        # fallback: رتب البدء لنفس الفئة
+        allowed = _role_ids_allowed(cfg, key, "starter")
     if not allowed:
         return member.guild_permissions.manage_messages
-    guild = member.guild
-    allowed_roles = []
-    for rid in allowed:
-        try:
-            r = guild.get_role(int(rid))
-        except Exception:
-            r = None
-        if r is not None:
-            allowed_roles.append(r)
-    if not allowed_roles:
-        return True
-    threshold = min(r.position for r in allowed_roles)
-    for r in member.roles:
-        if r.is_default():
-            continue
-        if r in allowed_roles or r.position >= threshold:
-            return True
-    return False
-
+    return _member_has_role_threshold(member, allowed)
 
 async def _log_game(guild: discord.Guild, text: str):
     try:
@@ -290,7 +628,7 @@ class LobbyView(discord.ui.View):
         self.channel_id = channel_id
         self.game_type = game_type
 
-    @discord.ui.button(label="دخول", style=discord.ButtonStyle.success, emoji="✅")
+    @discord.ui.button(label="دخول", style=discord.ButtonStyle.secondary, emoji="👤")
     async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
         st = _ACTIVE.get(self.channel_id)
         if not st or st.get("phase") != "lobby" or st.get("type") != self.game_type:
@@ -304,7 +642,7 @@ class LobbyView(discord.ui.View):
         await interaction.response.send_message("تم دخولك ✅", ephemeral=True)
         await self.cog._lobby_refresh(st)
 
-    @discord.ui.button(label="خروج", style=discord.ButtonStyle.danger, emoji="🚪")
+    @discord.ui.button(label="خروج", style=discord.ButtonStyle.secondary, emoji="👤")
     async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
         st = _ACTIVE.get(self.channel_id)
         if not st or st.get("phase") != "lobby":
@@ -350,7 +688,12 @@ def smart_eliminate_quota(n: int, fixed: int = 0) -> int:
 
 async def _player_limits(guild_id: int, game_key: str, default_min: int = 1, default_max: int = 300) -> tuple[int, int]:
     cfg = await _cfg(guild_id)
-    hard_max = 1000 if game_key == "roulette" else 300
+    if game_key == "roulette":
+        hard_max = 1000
+    elif game_key == "ghmida":
+        hard_max = 30
+    else:
+        hard_max = 300
     try:
         mn = int((cfg.get("min_players") or {}).get(game_key, default_min))
     except Exception:
@@ -373,63 +716,57 @@ async def _eliminate_setting(guild_id: int, game_key: str) -> int:
 
 
 class RouletteJoinView(discord.ui.View):
+    """دخول / خروج — الروليت تبدأ تلقائي بالعداد."""
+
     def __init__(self, cog: "GamesSystem", channel_id: int):
-        super().__init__(timeout=600)
+        super().__init__(timeout=900)
         self.cog = cog
         self.channel_id = channel_id
 
-    @discord.ui.button(label="دخول", style=discord.ButtonStyle.success, emoji="✅")
+    @discord.ui.button(label="دخول", style=discord.ButtonStyle.secondary, emoji="👤")
     async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
         st = _ACTIVE.get(self.channel_id)
         if not st or st.get("type") != "roulette" or st.get("phase") != "join":
             await interaction.response.send_message("ما في روليت مفتوحة هنا.", ephemeral=True)
             return
         uid = interaction.user.id
-        if uid in st["players"]:
-            await interaction.response.send_message("أنت داخل أصلاً.", ephemeral=True)
-            return
         max_p = int(st.get("max_players") or 1000)
-        if len(st["players"]) >= max_p:
+        if uid not in st["players"] and len(st["players"]) >= max_p:
             await interaction.response.send_message(f"ممتلئة (حد {max_p}).", ephemeral=True)
             return
         st["players"][uid] = interaction.user.display_name
         await interaction.response.send_message("تم دخولك للروليت ✅", ephemeral=True)
         await self.cog._roulette_refresh(st)
 
-    @discord.ui.button(label="خروج", style=discord.ButtonStyle.danger, emoji="🚪")
+    @discord.ui.button(label="خروج", style=discord.ButtonStyle.secondary, emoji="👤")
     async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
         st = _ACTIVE.get(self.channel_id)
         if not st or st.get("type") != "roulette" or st.get("phase") != "join":
             await interaction.response.send_message("ما في روليت مفتوحة.", ephemeral=True)
             return
         uid = interaction.user.id
-        if uid not in st["players"]:
-            await interaction.response.send_message("أنت مو داخل.", ephemeral=True)
-            return
-        if uid == st.get("host_id") and len(st["players"]) > 1:
-            await interaction.response.send_message("المضيف ما يطلع إلا إذا فك اللعبة أو باقي لحاله.", ephemeral=True)
+        if uid == st.get("host_id") and len(st.get("players") or {}) > 1:
+            await interaction.response.send_message("المضيف يبقى حتى ينتهي العداد أو يبقى لحاله.", ephemeral=True)
             return
         st["players"].pop(uid, None)
+        if not st["players"]:
+            await interaction.response.send_message("خرجت · الروليت انلغت.", ephemeral=True)
+            await self.cog._clear(self.channel_id)
+            try:
+                await interaction.message.edit(view=None)
+            except Exception:
+                pass
+            return
         await interaction.response.send_message("خرجت من الروليت.", ephemeral=True)
         await self.cog._roulette_refresh(st)
 
-    @discord.ui.button(label="بدء", style=discord.ButtonStyle.primary, emoji="▶️")
-    async def start(self, interaction: discord.Interaction, button: discord.ui.Button):
-        st = _ACTIVE.get(self.channel_id)
-        if not st or st.get("type") != "roulette" or st.get("phase") != "join":
-            await interaction.response.send_message("ما في روليت.", ephemeral=True)
-            return
-        if interaction.user.id != st.get("host_id"):
-            await interaction.response.send_message("فقط المضيف يبدأ.", ephemeral=True)
-            return
-        if len(st["players"]) < 2:
-            await interaction.response.send_message("لازم لاعبين على الأقل.", ephemeral=True)
-            return
-        await interaction.response.defer()
-        await self.cog._roulette_begin(st)
-
 
 class RoulettePickView(discord.ui.View):
+    """قوائم اختيار (20 لاعب لكل قائمة) + رقم الدخول + طرد عشوائي."""
+
+    PER_MENU = 20
+    MENUS_PER_PAGE = 4  # صف للقوائم + صف للأزرار (حد ديسكورد 5 صفوف)
+
     def __init__(self, cog: "GamesSystem", channel_id: int, chooser_id: int, page: int = 0):
         super().__init__(timeout=None)
         self.cog = cog
@@ -438,35 +775,83 @@ class RoulettePickView(discord.ui.View):
         self.page = page
         self._build()
 
+    def _ordered_targets(self, st: dict) -> list[tuple[int, int, str]]:
+        """(رقم_الدخول, user_id, الاسم) بدون المختار."""
+        numbers = st.get("join_numbers") or {}
+        rows = []
+        for i, (uid, name) in enumerate(st.get("players") or {}.items(), 1):
+            if uid == self.chooser_id:
+                continue
+            num = int(numbers.get(str(uid), numbers.get(uid, i)))
+            rows.append((num, uid, name))
+        rows.sort(key=lambda x: x[0])
+        return rows
+
     def _build(self):
         self.clear_items()
         st = _ACTIVE.get(self.channel_id)
         if not st:
             return
-        players = [(uid, name) for uid, name in st["players"].items() if uid != self.chooser_id]
-        per = int(st.get("per_page") or 20)
-        pages = max(1, (len(players) + per - 1) // per)
+        targets = self._ordered_targets(st)
+        per_page = self.PER_MENU * self.MENUS_PER_PAGE
+        pages = max(1, (len(targets) + per_page - 1) // per_page) if targets else 1
         self.page = max(0, min(self.page, pages - 1))
-        chunk = players[self.page * per : (self.page + 1) * per]
+        start = self.page * per_page
+        chunk = targets[start : start + per_page]
 
-        for i, (uid, name) in enumerate(chunk):
-            label = f"{name}"[:70]
-            btn = discord.ui.Button(
-                label=label,
-                style=discord.ButtonStyle.secondary,
-                custom_id=f"rl:pick:{uid}",
-                row=i // 5,
+        # قوائم منسدلة — كل واحدة حتى 20
+        for m in range(self.MENUS_PER_PAGE):
+            part = chunk[m * self.PER_MENU : (m + 1) * self.PER_MENU]
+            if not part:
+                break
+            options = []
+            for num, uid, name in part:
+                label = f"{num} | {name}"
+                if len(label) > 100:
+                    label = label[:97] + "..."
+                options.append(
+                    discord.SelectOption(
+                        label=label,
+                        value=str(uid),
+                        description=f"رقم الدخول {num}",
+                    )
+                )
+            sel = discord.ui.Select(
+                placeholder=f"اختر لاعب للطرد · قائمة {m + 1} (صفحة {self.page + 1}/{pages})",
+                options=options,
+                min_values=1,
+                max_values=1,
+                row=m,
             )
 
-            async def _cb(interaction: discord.Interaction, target_id=uid):
-                await self.cog._roulette_kick(interaction, self.channel_id, self.chooser_id, target_id)
+            async def _on_select(interaction: discord.Interaction, select=sel):
+                if interaction.user.id != self.chooser_id:
+                    await interaction.response.send_message("مو دورك.", ephemeral=True)
+                    return
+                try:
+                    target_id = int(select.values[0])
+                except Exception:
+                    await interaction.response.send_message("اختيار غير صالح.", ephemeral=True)
+                    return
+                await self.cog._roulette_kick(
+                    interaction, self.channel_id, self.chooser_id, target_id
+                )
 
-            btn.callback = _cb
-            self.add_item(btn)
+            sel.callback = _on_select
+            self.add_item(sel)
 
-        # صف أخير: صفحات + انسحب
+        # صف الأزرار
+        btn_row = min(4, self.MENUS_PER_PAGE)  # آخر صف متاح
+        # إذا في قوائم على صف 0-3، الأزرار على صف 4
+        btn_row = 4
+
         if pages > 1:
-            prev = discord.ui.Button(label="◀", style=discord.ButtonStyle.primary, row=4, disabled=self.page <= 0)
+            prev = discord.ui.Button(
+                label="◀ السابق",
+                style=discord.ButtonStyle.primary,
+                row=btn_row,
+                disabled=self.page <= 0,
+            )
 
             async def _prev(interaction: discord.Interaction):
                 if interaction.user.id != self.chooser_id:
@@ -478,7 +863,12 @@ class RoulettePickView(discord.ui.View):
             prev.callback = _prev
             self.add_item(prev)
 
-            nxt = discord.ui.Button(label="▶", style=discord.ButtonStyle.primary, row=4, disabled=self.page >= pages - 1)
+            nxt = discord.ui.Button(
+                label="التالي ▶",
+                style=discord.ButtonStyle.primary,
+                row=btn_row,
+                disabled=self.page >= pages - 1,
+            )
 
             async def _nxt(interaction: discord.Interaction):
                 if interaction.user.id != self.chooser_id:
@@ -490,7 +880,38 @@ class RoulettePickView(discord.ui.View):
             nxt.callback = _nxt
             self.add_item(nxt)
 
-        withdraw = discord.ui.Button(label="انسحب", style=discord.ButtonStyle.danger, row=4)
+        rnd = discord.ui.Button(
+            label="طرد عشوائي",
+            style=discord.ButtonStyle.danger,
+            emoji="🎲",
+            row=btn_row,
+        )
+
+        async def _rnd(interaction: discord.Interaction):
+            if interaction.user.id != self.chooser_id:
+                await interaction.response.send_message("مو دورك.", ephemeral=True)
+                return
+            cur = _ACTIVE.get(self.channel_id)
+            if not cur or cur.get("phase") != "play":
+                await interaction.response.send_message("اللعبة خلصت.", ephemeral=True)
+                return
+            pool = [uid for uid in cur.get("players") or {} if uid != self.chooser_id]
+            if not pool:
+                await interaction.response.send_message("ما في أحد للطرد.", ephemeral=True)
+                return
+            target_id = random.choice(pool)
+            await self.cog._roulette_kick(
+                interaction, self.channel_id, self.chooser_id, target_id
+            )
+
+        rnd.callback = _rnd
+        self.add_item(rnd)
+
+        withdraw = discord.ui.Button(
+            label="انسحب",
+            style=discord.ButtonStyle.secondary,
+            row=btn_row,
+        )
 
         async def _wd(interaction: discord.Interaction):
             if interaction.user.id != self.chooser_id:
@@ -584,6 +1005,199 @@ class XOView(discord.ui.View):
             self.add_item(btn)
 
 
+
+class GhmidaHideView(discord.ui.View):
+    """زر يفتح قوائم المربعات الفاضية (1–50)."""
+
+    def __init__(self, cog: "GamesSystem", channel_id: int):
+        super().__init__(timeout=300)
+        self.cog = cog
+        self.channel_id = channel_id
+
+    @discord.ui.button(label="اختبئ", style=discord.ButtonStyle.success, emoji="🙈")
+    async def hide_btn(self, interaction: discord.Interaction, button: discord.ui.Button):
+        st = _ACTIVE.get(self.channel_id)
+        if not st or st.get("type") != "ghmida" or st.get("phase") != "hide":
+            await interaction.response.send_message("ما في مرحلة اختباء.", ephemeral=True)
+            return
+        uid = interaction.user.id
+        if uid not in (st.get("alive") or set()) and uid not in (st.get("players") or {}):
+            await interaction.response.send_message("ما أنت من اللاعبين.", ephemeral=True)
+            return
+        if uid in (st.get("player_square") or {}):
+            sq = st["player_square"][uid]
+            await interaction.response.send_message(f"أنت أصلاً في المربع **{sq}**.", ephemeral=True)
+            return
+        empty = [i for i, u in st["squares"].items() if u is None]
+        if not empty:
+            await interaction.response.send_message("ما في مربع فاضي.", ephemeral=True)
+            return
+        empty.sort()
+        view = GhmidaSquarePickView(self.cog, self.channel_id, uid, empty, mode="hide")
+        await interaction.response.send_message(
+            "اختر رقم المربع للاختباء:",
+            view=view,
+            ephemeral=True,
+        )
+
+
+class GhmidaSquarePickView(discord.ui.View):
+    """قوائم أرقام مربعات (حتى 25 لكل قائمة)."""
+
+    def __init__(
+        self,
+        cog: "GamesSystem",
+        channel_id: int,
+        user_id: int,
+        squares: list[int],
+        mode: str = "hide",
+        page: int = 0,
+    ):
+        super().__init__(timeout=120)
+        self.cog = cog
+        self.channel_id = channel_id
+        self.user_id = user_id
+        self.squares = squares
+        self.mode = mode
+        self.page = page
+        self._build()
+
+    def _build(self):
+        self.clear_items()
+        per = 25
+        pages = max(1, (len(self.squares) + per - 1) // per)
+        self.page = max(0, min(self.page, pages - 1))
+        chunk = self.squares[self.page * per : (self.page + 1) * per]
+        if not chunk:
+            return
+        opts = [
+            discord.SelectOption(label=f"مربع {n}", value=str(n), description=f"رقم {n}")
+            for n in chunk
+        ]
+        sel = discord.ui.Select(
+            placeholder=f"اختر مربع · صفحة {self.page + 1}/{pages}",
+            options=opts,
+            min_values=1,
+            max_values=1,
+        )
+
+        async def _sel(interaction: discord.Interaction):
+            if interaction.user.id != self.user_id:
+                await interaction.response.send_message("مو لك.", ephemeral=True)
+                return
+            try:
+                sq = int(sel.values[0])
+            except Exception:
+                await interaction.response.send_message("غير صالح.", ephemeral=True)
+                return
+            if self.mode == "hide":
+                await self.cog._ghmida_claim_square(interaction, self.channel_id, self.user_id, sq)
+            else:
+                await self.cog._ghmida_search(interaction, self.channel_id, self.user_id, sq)
+
+        sel.callback = _sel
+        self.add_item(sel)
+        if pages > 1:
+            prev = discord.ui.Button(label="◀", disabled=self.page <= 0)
+
+            async def _p(interaction: discord.Interaction):
+                if interaction.user.id != self.user_id:
+                    await interaction.response.send_message("مو لك.", ephemeral=True)
+                    return
+                v = GhmidaSquarePickView(
+                    self.cog, self.channel_id, self.user_id, self.squares, self.mode, self.page - 1
+                )
+                await interaction.response.edit_message(view=v)
+
+            prev.callback = _p
+            self.add_item(prev)
+            nxt = discord.ui.Button(label="▶", disabled=self.page >= pages - 1)
+
+            async def _n(interaction: discord.Interaction):
+                if interaction.user.id != self.user_id:
+                    await interaction.response.send_message("مو لك.", ephemeral=True)
+                    return
+                v = GhmidaSquarePickView(
+                    self.cog, self.channel_id, self.user_id, self.squares, self.mode, self.page + 1
+                )
+                await interaction.response.edit_message(view=v)
+
+            nxt.callback = _n
+            self.add_item(nxt)
+
+
+class GhmidaHuntView(discord.ui.View):
+    """الباحث يختار مربع مشغول أو بحث عشوائي."""
+
+    def __init__(self, cog: "GamesSystem", channel_id: int, seeker_id: int):
+        super().__init__(timeout=None)
+        self.cog = cog
+        self.channel_id = channel_id
+        self.seeker_id = seeker_id
+        self._build()
+
+    def _build(self):
+        self.clear_items()
+        st = _ACTIVE.get(self.channel_id)
+        if not st:
+            return
+        occupied = sorted(
+            sq for uid, sq in (st.get("player_square") or {}).items()
+            if sq and uid != self.seeker_id
+        )
+        # قوائم المربعات المشغولة (بدون الباحث)
+        for m in range(0, min(4, (len(occupied) + 24) // 25 or 1)):
+            part = occupied[m * 25 : (m + 1) * 25]
+            if not part:
+                break
+            opts = [discord.SelectOption(label=f"مربع {n}", value=str(n)) for n in part]
+            sel = discord.ui.Select(
+                placeholder=f"مربعات مشغولة · قائمة {m + 1}",
+                options=opts,
+                min_values=1,
+                max_values=1,
+                row=m,
+            )
+
+            async def _sel(interaction: discord.Interaction, select=sel):
+                if interaction.user.id != self.seeker_id:
+                    await interaction.response.send_message("مو دورك.", ephemeral=True)
+                    return
+                try:
+                    sq = int(select.values[0])
+                except Exception:
+                    return
+                await self.cog._ghmida_search(interaction, self.channel_id, self.seeker_id, sq)
+
+            sel.callback = _sel
+            self.add_item(sel)
+
+        rnd = discord.ui.Button(label="بحث عشوائي", style=discord.ButtonStyle.danger, emoji="🎲", row=4)
+
+        async def _rnd(interaction: discord.Interaction):
+            if interaction.user.id != self.seeker_id:
+                await interaction.response.send_message("مو دورك.", ephemeral=True)
+                return
+            cur = _ACTIVE.get(self.channel_id)
+            if not cur:
+                return
+            pool = [
+                sq for uid, sq in (cur.get("player_square") or {}).items()
+                if sq and uid != self.seeker_id
+            ]
+            if not pool:
+                await interaction.response.send_message("ما في أحد.", ephemeral=True)
+                return
+            await self.cog._ghmida_search(
+                interaction, self.channel_id, self.seeker_id, random.choice(pool)
+            )
+
+        rnd.callback = _rnd
+        self.add_item(rnd)
+
+
+
+
 class GamesSystem(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -596,8 +1210,7 @@ class GamesSystem(commands.Cog):
             await ctx.reply("الألعاب مقفولة بهالروم. الأدمن يضبط الرومات بـ `/games`.")
             return False
         if not await _can_start(ctx.author, game_key):
-            await ctx.reply("ما عندك صلاحية استخدام هاللعبة.")
-            return False
+            return False  # صامت — بدون رد
         if self._busy(ctx.channel.id):
             await ctx.reply("في لعبة شغّالة هنا.")
             return False
@@ -640,17 +1253,17 @@ class GamesSystem(commands.Cog):
             await channel.send("الألعاب مقفولة بهالروم. الأدمن يضبط الرومات بـ `/games`.")
             return
         if isinstance(host, discord.Member) and not await _can_start(host, game_type):
-            await channel.send("ما عندك صلاحية بدء هاللعبة.")
-            return
+            return  # صامت
         cfg_min, cfg_max = await _player_limits(channel.guild.id, game_type, min_players, 300)
         lobby_secs = await _timeout(channel.guild.id, "lobby", 30)
-        lobby_secs = max(10, min(120, int(lobby_secs)))
-        emb = _game_embed(
-            title,
-            desc
-            + f"\n\n**اللاعبون (1):** {host.mention}"
-            + f"\n⏱️ يبدأ خلال **{lobby_secs}** ثانية · الي يلحق يدخل",
+        lobby_secs = max(10, min(600, int(lobby_secs)))
+        emb = discord.Embed(
+            title=title,
+            description="للدخول على اللعبة قم بالضغط" + chr(10) + "على زر **دخول**",
+            color=discord.Color.from_rgb(20, 24, 40),
         )
+        emb.set_author(name=f"⏰ ستبدأ اللعبة خلال {lobby_secs} ثانية")
+        emb.set_footer(text=f"(1/{cfg_max})")
         view = LobbyView(self, channel.id, game_type)
         msg = await channel.send(embed=emb, view=view)
         st = {
@@ -669,6 +1282,11 @@ class GamesSystem(commands.Cog):
         }
         if extra:
             st.update(extra)
+            if "max_players" in extra:
+                try:
+                    st["max_players"] = min(int(st["max_players"]), int(extra["max_players"]))
+                except Exception:
+                    pass
         _ACTIVE[channel.id] = st
         await self._lobby_refresh(st)
         asyncio.create_task(self._lobby_countdown(channel.id))
@@ -685,13 +1303,8 @@ class GamesSystem(commands.Cog):
         lines = [f"**{i}.** <@{uid}>" for i, (uid, _) in enumerate(players, 1)]
         body = "\n".join(lines) if lines else "لا أحد"
         title_map = {
-            "kat": "❓ كت", "asra": "⚡ أسرع", "player": "⚽ لاعب",
-            "tafkik": "🔤 تفكيك", "tajmee": "🧩 تجميع",
-            "silsila": "🔗 سلسلة", "replica": "📋 ريبلكا",
-            "sabaq": "🏁 سباق", "lughz": "🧩 لغز", "arqam": "🔢 أرقام",
-            "mufrad": "📘 مفرد", "jam": "📚 جمع", "harf": "🔤 حرف مفقود",
-            "xo": "⭕ XO", "ghmida": "🙈 غميضة", "khammen": "📍 خمن",
-            "aks": "🔄 عكس",
+            "silsila": "سلسلة", "replica": "ريبلكا", "sabaq": "سباق",
+            "xo": "XO", "ghmida": "غميضة", "mafia": "مافيا", "roulette": "روليت",
         }
         title = title_map.get(st.get("type"), "🎮 لوبي")
         n = len(players)
@@ -707,10 +1320,13 @@ class GamesSystem(commands.Cog):
         left = 0
         if st.get("lobby_ends"):
             left = max(0, int(st["lobby_ends"] - time.monotonic()))
-        emb = _game_embed(
-            f"{title} — انتظار",
-            f"**{n}/{mx}** لاعب (الحد الأدنى: {mn}){extra}\n\n{body}\n\n⏱️ باقي **{left}** ثانية · الي يلحق يدخل",
+        emb = discord.Embed(
+            title=title,
+            description="للدخول على اللعبة قم بالضغط" + chr(10) + "على زر **دخول**" + (extra or ""),
+            color=discord.Color.from_rgb(20, 24, 40),
         )
+        emb.set_author(name=f"⏰ ستبدأ اللعبة خلال {left} ثانية")
+        emb.set_footer(text=f"({n}/{mx})")
         try:
             await msg.edit(embed=emb, view=LobbyView(self, st["channel_id"], st["type"]))
         except Exception:
@@ -795,6 +1411,10 @@ class GamesSystem(commands.Cog):
             await self._run_khammen(channel, st)
         elif gtype == "aks":
             await self._run_aks(channel, st)
+        elif gtype == "mafia":
+            await self._mafia_begin(st, channel)
+        elif gtype == "roulette":
+            await self._roulette_begin(st)
 
 
 
@@ -1080,7 +1700,7 @@ class GamesSystem(commands.Cog):
     @commands.command(name="سباق")
     async def cmd_sabaq(self, ctx: commands.Context):
         if not await _can_start(ctx.author, "sabaq"):
-            return await ctx.reply("ما عندك صلاحية بدء هاللعبة.")
+            return
         cfg = await _cfg(ctx.guild.id)
         target = int(cfg.get("race_target") or 10)
         await self._open_lobby(
@@ -1277,7 +1897,7 @@ class GamesSystem(commands.Cog):
     @commands.command(name="xo", aliases=["XO", "اكس"])
     async def cmd_xo(self, ctx):
         if not await _can_start(ctx.author, "xo"):
-            return await ctx.reply("ما عندك صلاحية بدء هاللعبة.")
+            return
         await self._open_lobby(ctx.channel, ctx.author, "xo", "⭕ XO", "لعبة إكس أو · لاعبان", 2)
 
     async def _run_xo(self, channel, st):
@@ -1295,72 +1915,229 @@ class GamesSystem(commands.Cog):
         msg = await channel.send(embed=emb, view=view)
         st["msg_id"] = msg.id
 
+
     # ===== غميضة =====
     @commands.command(name="غميضة")
     async def cmd_ghmida(self, ctx):
         if not await _can_start(ctx.author, "ghmida"):
-            return await ctx.reply("ما عندك صلاحية بدء هاللعبة.")
+            return
+        # حد أقصى 30 لاعب
         await self._open_lobby(
-            ctx.channel, ctx.author, "ghmida", "🙈 غميضة",
-            "اختبئوا في الأماكن · كل جولة ينكشف بعض الأماكن حتى يبقى آخر واحد",
+            ctx.channel,
+            ctx.author,
+            "ghmida",
+            "غميضة",
+            "50 مربع للاختباء · اختاروا مربعات ثم اطردوا بعض",
             2,
+            extra={"max_players": 30},
         )
 
     async def _run_ghmida(self, channel, st):
-        players = list(st["players"].keys())
+        """غميضة: 50 مربع · اختيار مربعات · طرد بالمربع."""
+        players = dict(st.get("players") or {})
+        if len(players) > 30:
+            # قص لـ 30 بالترتيب
+            players = dict(list(players.items())[:30])
+            st["players"] = players
         n = len(players)
-        # أماكن أكثر من اللاعبين (~1.4x)
-        need = min(len(HIDE_PLACES), max(n + 5, int(n * 1.4)))
-        places = random.sample(HIDE_PLACES, need)
+        if n < 2:
+            await channel.send("لازم لاعبين على الأقل.")
+            await self._clear(channel.id)
+            return
         timeout = await _timeout(channel.guild.id, "ghmida", 30)
-        st["elim_fixed"] = await _eliminate_setting(channel.guild.id, "ghmida")
-        # توزيع عشوائي أولي
-        random.shuffle(places)
-        assignment = {}
-        for i, uid in enumerate(players):
-            assignment[uid] = places[i]
-        free = places[n:]
         st.update({
-            "assignment": assignment,
-            "places": places,
-            "free": free,
-            "timeout": timeout,
-            "phase": "play",
             "type": "ghmida",
+            "phase": "hide",
+            "squares": {i: None for i in range(1, 51)},  # رقم المربع -> user_id أو None
+            "player_square": {},  # user_id -> رقم المربع
+            "timeout": timeout,
+            "hide_deadline": time.monotonic() + max(45, timeout * 2),
+            "alive": set(players.keys()),
         })
-        # DM each player their place
-        for uid, place in assignment.items():
-            m = channel.guild.get_member(uid)
-            if m:
-                try:
-                    await m.send(f"🙈 مكانك في الغميضة: **{place}**\nالسيرفر: {channel.guild.name}")
-                except Exception:
-                    pass
+        emb = discord.Embed(
+            title="غميضة — اختباء",
+            description=(
+                f"**{n}** لاعب · **50** مربع\n"
+                "كل لاعب يضغط **اختبئ** ويختار مربع فاضي.\n"
+                "بعد ما الكل يختبئ (أو ينتهي الوقت) تبدأ جولات الطرد."
+            ),
+            color=discord.Color.from_rgb(20, 24, 40),
+        )
+        emb.set_footer(text=f"مختبئون: 0/{n}")
+        view = GhmidaHideView(self, channel.id)
+        msg = await channel.send(embed=emb, view=view)
+        st["msg_id"] = msg.id
+        st["channel_id"] = channel.id
+        asyncio.create_task(self._ghmida_hide_timer(channel.id))
+
+    async def _ghmida_hide_timer(self, channel_id: int):
+        while True:
+            st = _ACTIVE.get(channel_id)
+            if not st or st.get("type") != "ghmida" or st.get("phase") != "hide":
+                return
+            left = int(st.get("hide_deadline", 0) - time.monotonic())
+            if left <= 0:
+                break
+            await asyncio.sleep(min(5, max(1, left)))
+        st = _ACTIVE.get(channel_id)
+        if not st or st.get("phase") != "hide":
+            return
+        ch = self.bot.get_channel(channel_id)
+        if not ch:
+            await self._clear(channel_id)
+            return
+        # من ما اختبأ: مربع عشوائي فاضي
+        empty = [i for i, u in st["squares"].items() if u is None]
+        random.shuffle(empty)
+        for uid in list(st.get("alive") or []):
+            if uid not in (st.get("player_square") or {}):
+                if not empty:
+                    break
+                sq = empty.pop()
+                st["squares"][sq] = uid
+                st["player_square"][uid] = sq
+        await self._ghmida_start_hunt(ch, st)
+
+    async def _ghmida_refresh_hide(self, st: dict):
+        ch = self.bot.get_channel(st["channel_id"])
+        if not ch:
+            return
+        try:
+            msg = await ch.fetch_message(st["msg_id"])
+        except Exception:
+            return
+        n = len(st.get("alive") or {})
+        hidden = len(st.get("player_square") or {})
+        left = max(0, int(st.get("hide_deadline", 0) - time.monotonic()))
+        emb = discord.Embed(
+            title="غميضة — اختباء",
+            description=(
+                f"**{n}** لاعب · **50** مربع\n"
+                "اضغط **اختبئ** واختر مربع فاضي.\n"
+                f"⏱️ باقي **{left}**ث للاختباء"
+            ),
+            color=discord.Color.from_rgb(20, 24, 40),
+        )
+        emb.set_footer(text=f"مختبئون: {hidden}/{n}")
+        try:
+            await msg.edit(embed=emb, view=GhmidaHideView(self, st["channel_id"]))
+        except Exception:
+            pass
+        if hidden >= n and n >= 2:
+            await self._ghmida_start_hunt(ch, st)
+
+    async def _ghmida_start_hunt(self, channel, st: dict):
+        if st.get("phase") == "hunt":
+            return
+        st["phase"] = "hunt"
+        # عطّل زر الاختباء
+        try:
+            msg = await channel.fetch_message(st["msg_id"])
+            await msg.edit(view=None)
+        except Exception:
+            pass
+        hidden = len(st.get("player_square") or {})
+        if hidden < 2:
+            await channel.send("ما اختبأ كفاية لاعبين.")
+            await self._clear(channel.id)
+            return
         await channel.send(
             embed=_game_embed(
-                "🙈 بدأت الغميضة",
-                f"**{n}** لاعب · **{need}** مكان\nالأماكن انرسلت بالخاص.\nكل جولة ينكشف بعض الأماكن!",
+                "غميضة — البحث",
+                f"**{hidden}** مختبئ في 50 مربع.\n"
+                "كل جولة يُختار باحث يختار **رقم مربع** لطرد من فيه.",
             )
         )
-        await asyncio.sleep(3)
-        while len(st["assignment"]) > 1:
-            alive = list(st["assignment"].items())
-            # استبعاد ذكي
-            quota = smart_eliminate_quota(len(alive), int(st.get("elim_fixed") or 0))
-            quota = min(quota, len(alive) - 1)
-            victims = random.sample(alive, quota)
-            for uid, place in victims:
-                st["assignment"].pop(uid, None)
-                await channel.send(f"🔦 انكشف **{place}** — <@{uid}> طلع!")
-            if len(st["assignment"]) <= 1:
-                break
-            await channel.send(f"باقي **{len(st['assignment'])}** مختبئين… الجولة الجاية بعد {timeout}ث")
+        await self._ghmida_hunt_turn(channel, st)
+
+    async def _ghmida_hunt_turn(self, channel, st: dict):
+        alive = [uid for uid, sq in (st.get("player_square") or {}).items() if sq]
+        if len(alive) <= 1:
+            if alive:
+                uid = alive[0]
+                pts = await _add_point(channel.guild.id, uid)
+                await channel.send(f"🏆 فاز بالغميضة: <@{uid}> · نجوم: **{pts}**")
+            else:
+                await channel.send("انتهت الغميضة بدون فائز.")
+            await self._clear(channel.id)
+            return
+        seeker = random.choice(alive)
+        st["seeker"] = seeker
+        timeout = int(st.get("timeout") or 30)
+        occ = sorted(
+            (sq, uid) for uid, sq in st["player_square"].items() if sq
+        )
+        emb = _game_embed(
+            "غميضة — دور البحث",
+            f"<@{seeker}> عندك **{timeout}**ث\n"
+            f"اختر مربع من القوائم (المربعات المشغولة فقط) أو **بحث عشوائي**.\n"
+            f"الباقي: **{len(alive)}** مختبئ",
+        )
+        view = GhmidaHuntView(self, channel.id, seeker)
+        msg = await channel.send(embed=emb, view=view)
+        st["pick_msg"] = msg.id
+        st["deadline"] = time.monotonic() + timeout
+
+        async def _timer():
             await asyncio.sleep(timeout)
-        if st["assignment"]:
-            uid = next(iter(st["assignment"]))
-            pts = await _add_point(channel.guild.id, uid)
-            await channel.send(f"🏆 آخر مختبئ: <@{uid}> · ⭐ **{pts}**")
-        await self._clear(channel.id)
+            cur = _ACTIVE.get(channel.id)
+            if not cur or cur.get("seeker") != seeker or cur.get("phase") != "hunt":
+                return
+            # الباحث ما اختار → ينطرد هو
+            sq = cur.get("player_square", {}).pop(seeker, None)
+            if sq:
+                cur["squares"][sq] = None
+            await channel.send(f"⏰ <@{seeker}> ما بحث — طلع من اللعبة.")
+            await self._ghmida_hunt_turn(channel, cur)
+
+        asyncio.create_task(_timer())
+
+
+    async def _ghmida_claim_square(self, interaction: discord.Interaction, channel_id: int, uid: int, square: int):
+        st = _ACTIVE.get(channel_id)
+        if not st or st.get("type") != "ghmida" or st.get("phase") != "hide":
+            await interaction.response.send_message("انتهت مرحلة الاختباء.", ephemeral=True)
+            return
+        if uid in (st.get("player_square") or {}):
+            await interaction.response.send_message("أنت مختبئ أصلاً.", ephemeral=True)
+            return
+        if st["squares"].get(square) is not None:
+            await interaction.response.send_message("المربع محجوز، اختار غيره.", ephemeral=True)
+            return
+        st["squares"][square] = uid
+        st["player_square"][uid] = square
+        await interaction.response.send_message(f"اختبأت في المربع **{square}** ✅", ephemeral=True)
+        await self._ghmida_refresh_hide(st)
+
+    async def _ghmida_search(self, interaction: discord.Interaction, channel_id: int, seeker_id: int, square: int):
+        st = _ACTIVE.get(channel_id)
+        if not st or st.get("type") != "ghmida" or st.get("phase") != "hunt":
+            await interaction.response.send_message("اللعبة خلصت.", ephemeral=True)
+            return
+        if interaction.user.id != seeker_id or st.get("seeker") != seeker_id:
+            await interaction.response.send_message("مو دورك.", ephemeral=True)
+            return
+        victim = st.get("squares", {}).get(square)
+        ch = interaction.channel
+        try:
+            await interaction.response.defer()
+        except Exception:
+            pass
+        try:
+            msg = await ch.fetch_message(st.get("pick_msg"))
+            await msg.edit(view=None)
+        except Exception:
+            pass
+        if victim is None or victim not in st.get("player_square", {}):
+            await ch.send(f"📭 المربع **{square}** فاضي!")
+            # الباحث يضل، جولة جديدة
+            await self._ghmida_hunt_turn(ch, st)
+            return
+        # طرد الضحية
+        st["player_square"].pop(victim, None)
+        st["squares"][square] = None
+        await ch.send(f"🔦 المربع **{square}** — انطرد <@{victim}>!")
+        await self._ghmida_hunt_turn(ch, st)
 
     # ===== خمن =====
     @commands.command(name="خمن")
@@ -1436,37 +2213,40 @@ class GamesSystem(commands.Cog):
     # ===== روليت =====
     @commands.command(name="روليت")
     async def cmd_roulette(self, ctx: commands.Context):
-        if self._busy(ctx.channel.id):
-            return await ctx.reply("في لعبة شغّالة هنا.")
+        if not await self._guard(ctx, "roulette"):
+            return
         cfg = await _cfg(ctx.guild.id)
         per = int(cfg.get("roulette_max_per_page") or 20)
-        timeout = await _timeout(ctx.guild.id, "roulette", 30)
-        emb = _game_embed(
-            "🎡 روليت",
-            "**طريقة اللعب:**\n"
-            "1- اضغط دخول\n"
-            "2- عند البدء يُختار لاعب عشوائي\n"
-            "3- المختار يطرد لاعب خلال الوقت\n"
-            "4- آخر لاعب يبقى = الفائز\n\n"
-            f"**اللاعبون (0):** لا أحد بعد\n"
-            f"وقت الاختيار: {timeout}ث",
+        turn_timeout = await _timeout(ctx.guild.id, "roulette", 30)
+        lobby_secs = await _timeout(ctx.guild.id, "lobby", 30)
+        lobby_secs = max(15, min(600, int(lobby_secs)))
+        _mn, _mx = await _player_limits(ctx.guild.id, "roulette", 2, 1000)
+        emb = discord.Embed(
+            title="روليت",
+            description="للدخول على اللعبة قم بالضغط" + chr(10) + "على زر **دخول**",
+            color=discord.Color.from_rgb(20, 24, 40),
         )
+        emb.set_author(name=f"⏰ ستبدأ اللعبة خلال {lobby_secs} ثانية")
+        emb.set_footer(text=f"(1/{_mx})")
         view = RouletteJoinView(self, ctx.channel.id)
         msg = await ctx.send(embed=emb, view=view)
-        _mn, _mx = await _player_limits(ctx.guild.id, "roulette", 2, 1000)
-        _ACTIVE[ctx.channel.id] = {
+        st = {
             "type": "roulette",
             "phase": "join",
             "players": {ctx.author.id: ctx.author.display_name},
             "host_id": ctx.author.id,
             "msg_id": msg.id,
             "per_page": per,
-            "timeout": timeout,
+            "timeout": turn_timeout,
             "channel_id": ctx.channel.id,
             "min_players": _mn,
             "max_players": _mx,
+            "lobby_secs": lobby_secs,
+            "lobby_ends": time.monotonic() + lobby_secs,
         }
-        await self._roulette_refresh(_ACTIVE[ctx.channel.id])
+        _ACTIVE[ctx.channel.id] = st
+        await self._roulette_refresh(st)
+        asyncio.create_task(self._roulette_countdown(ctx.channel.id))
 
     async def _roulette_refresh(self, st: dict):
         ch = self.bot.get_channel(st["channel_id"])
@@ -1476,24 +2256,68 @@ class GamesSystem(commands.Cog):
             msg = await ch.fetch_message(st["msg_id"])
         except Exception:
             return
-        players = list(st["players"].items())
-        lines = []
-        for i, (uid, name) in enumerate(players, 1):
-            lines.append(f"**{i}:** <@{uid}>")
-        body = "\n".join(lines) if lines else "لا أحد"
-        emb = _game_embed(
-            "🎡 روليت",
-            "**طريقة اللعب:**\n"
-            "1- دخول  2- بدء  3- المختار يطرد  4- آخر واحد يفوز\n\n"
-            f"**اللاعبون ({len(players)}):**\n{body}",
+        n = len(st.get("players") or {})
+        mx = int(st.get("max_players") or 1000)
+        left = 0
+        if st.get("lobby_ends"):
+            left = max(0, int(st["lobby_ends"] - time.monotonic()))
+        emb = discord.Embed(
+            title="روليت",
+            description="للدخول على اللعبة قم بالضغط" + chr(10) + "على زر **دخول**",
+            color=discord.Color.from_rgb(20, 24, 40),
         )
+        emb.set_author(name=f"⏰ ستبدأ اللعبة خلال {left} ثانية")
+        emb.set_footer(text=f"({n}/{mx})")
         try:
             await msg.edit(embed=emb, view=RouletteJoinView(self, st["channel_id"]))
         except Exception:
             pass
 
+    async def _roulette_countdown(self, channel_id: int):
+        while True:
+            st = _ACTIVE.get(channel_id)
+            if not st or st.get("type") != "roulette" or st.get("phase") != "join":
+                return
+            left = int(st.get("lobby_ends", 0) - time.monotonic())
+            if left <= 0:
+                break
+            try:
+                await self._roulette_refresh(st)
+            except Exception:
+                pass
+            await asyncio.sleep(1 if left <= 15 else 5)
+        st = _ACTIVE.get(channel_id)
+        if not st or st.get("phase") != "join":
+            return
+        ch = self.bot.get_channel(channel_id)
+        if not ch:
+            await self._clear(channel_id)
+            return
+        n = len(st.get("players") or {})
+        mn = int(st.get("min_players") or 2)
+        if n < mn:
+            try:
+                msg = await ch.fetch_message(st["msg_id"])
+                await msg.edit(view=None)
+            except Exception:
+                pass
+            await ch.send(f"⏱️ انتهى الوقت · ما اكتمل العدد ({n}/{mn}).")
+            await self._clear(channel_id)
+            return
+        try:
+            msg = await ch.fetch_message(st["msg_id"])
+            await msg.edit(view=None)
+        except Exception:
+            pass
+        await ch.send(f"🎡 بدأت الروليت بـ **{n}** لاعب!")
+        await self._roulette_begin(st)
+
     async def _roulette_begin(self, st: dict):
         st["phase"] = "play"
+        # تثبيت أرقام الدخول حسب ترتيب الدخول
+        st["join_numbers"] = {
+            str(uid): i for i, uid in enumerate((st.get("players") or {}).keys(), 1)
+        }
         ch = self.bot.get_channel(st["channel_id"])
         await self._roulette_turn(ch, st)
 
@@ -1514,8 +2338,9 @@ class GamesSystem(commands.Cog):
         timeout = int(st.get("timeout") or 30)
         emb = _game_embed(
             "🎡 اختيار للطرد",
-            f"<@{chooser}> عندك **{timeout}** ثانية تختار مين تطرد.\n"
-            f"الباقي: **{len(players)}** لاعب",
+            f"<@{chooser}> عندك **{timeout}** ثانية.\n"
+            f"الباقي: **{len(players)}** لاعب\n"
+            "اختر من القوائم (رقم الدخول | الاسم) أو **طرد عشوائي**.",
         )
         view = RoulettePickView(self, channel.id, chooser, 0)
         msg = await channel.send(embed=emb, view=view)
@@ -1566,33 +2391,23 @@ class GamesSystem(commands.Cog):
     # ===== مافيا =====
     @commands.command(name="مافيا")
     async def cmd_mafia(self, ctx: commands.Context):
-        if self._busy(ctx.channel.id):
-            return await ctx.reply("في لعبة شغّالة هنا.")
+        if not await self._guard(ctx, "mafia"):
+            return
         cfg = await _cfg(ctx.guild.id)
         mcfg = cfg.get("mafia") or {}
         min_p = int(mcfg.get("min_players") or 5)
         max_p = int(mcfg.get("max_players") or 300)
         max_p = max(min_p, min(300, max_p))
         timeout = await _timeout(ctx.guild.id, "mafia", 30)
-        emb = _game_embed(
-            "🔪 مافيا",
-            f"أقل عدد: **{min_p}**\nوقت الجولات: **{timeout}**ث\n"
-            "الأدوار تُرسل بالخاص.\nاضغط دخول ثم يبدأ المضيف.",
+        await self._open_lobby(
+            ctx.channel,
+            ctx.author,
+            "mafia",
+            "مافيا",
+            "الأدوار تُرسل بالخاص بعد البداية.",
+            min_players=min_p,
+            extra={"timeout": timeout, "max_players": max_p, "mafia_cfg": mcfg},
         )
-        view = MafiaJoinView(self, ctx.channel.id)
-        msg = await ctx.send(embed=emb, view=view)
-        _ACTIVE[ctx.channel.id] = {
-            "type": "mafia",
-            "phase": "join",
-            "players": {ctx.author.id: ctx.author.display_name},
-            "host_id": ctx.author.id,
-            "msg_id": msg.id,
-            "channel_id": ctx.channel.id,
-            "timeout": timeout,
-            "min_players": min_p,
-            "max_players": max_p,
-        }
-        await self._mafia_refresh(_ACTIVE[ctx.channel.id])
 
     async def _mafia_refresh(self, st: dict):
         ch = self.bot.get_channel(st["channel_id"])
@@ -2129,7 +2944,7 @@ class GamesSystem(commands.Cog):
         gtype = st.get("type") or ""
         host = st.get("host_id")
         if ctx.author.id != host and not await _can_stop(ctx.author, gtype):
-            return await ctx.reply("ما عندك صلاحية إيقاف اللعبة.")
+            return  # صامت
         await self._clear(ctx.channel.id)
         await ctx.reply(f"⏹️ تم إيقاف اللعبة ({gtype}).")
         await _log_game(ctx.guild, f"⏹️ أوقف {ctx.author.mention} لعبة **{gtype}** في {ctx.channel.mention}")

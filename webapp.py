@@ -1070,6 +1070,10 @@ async def guild_detail(request: Request, guild_id: str):
         el = gcfg.get("eliminate") or {}
         sr = gcfg.get("starter_roles") or {}
         spr = gcfg.get("stopper_roles") or {}
+        sr_solo = gcfg.get("starter_roles_solo") or []
+        sr_group = gcfg.get("starter_roles_group") or []
+        sp_solo = gcfg.get("stopper_roles_solo") or []
+        sp_group = gcfg.get("stopper_roles_group") or []
         chans = gcfg.get("allowed_channels") or []
         race_target = gcfg.get("race_target", 10)
         log_ch = gcfg.get("log_channel_id")
@@ -1106,15 +1110,11 @@ async def guild_detail(request: Request, guild_id: str):
               <div class="game-body">
                 <div class="field"><label>الوقت (ثواني)</label>
                   <input type="text" name="t_{key}" value="{_esc(to.get(key, def_t))}"/></div>
-                <div class="field"><label>مين يبدأ</label>
-                  {_role_picker_html(guild, f"start_{key}", multi=True, selected_ids=sr.get(key) or [])}</div>
-                <div class="field"><label>مين يوقف</label>
-                  {_role_picker_html(guild, f"stop_{key}", multi=True, selected_ids=spr.get(key) or [])}</div>
               </div>
             </details>""")
         group_blocks = []
         for key, label, cmd, def_t, def_min in group_meta:
-            hard = 1000 if key == "roulette" else 300
+            hard = 1000 if key == "roulette" else (30 if key == "ghmida" else 300)
             group_blocks.append(f"""
             <details class="game-block">
               <summary><b>{_esc(label)}</b> <code>{_esc(cmd)}</code> · { _esc(to.get(key, def_t)) }ث</summary>
@@ -1127,10 +1127,6 @@ async def guild_detail(request: Request, guild_id: str):
                   <div class="field"><label>أقصى لاعبين</label>
                     <input type="text" name="max_{key}" value="{_esc(mx.get(key, hard))}"/></div>
                 </div>
-                <div class="field"><label>مين يبدأ</label>
-                  {_role_picker_html(guild, f"start_{key}", multi=True, selected_ids=sr.get(key) or [])}</div>
-                <div class="field"><label>مين يوقف</label>
-                  {_role_picker_html(guild, f"stop_{key}", multi=True, selected_ids=spr.get(key) or [])}</div>
               </div>
             </details>""")
         ch_txt = ", ".join(str(c) for c in chans)
@@ -1141,6 +1137,20 @@ async def guild_detail(request: Request, guild_id: str):
           <form method="post" action="/guild/{guild_id}/games-settings" class="form manage-form">
             <h3>روم سجل الألعاب (فوز / إيقاف)</h3>
             {_channel_picker_html(guild, "log_channel_id", selected_id=log_ch)}
+            <h3 style="margin-top:16px">⏱️ وقت دخول اللوبي (كل الجماعية)</h3>
+            <div class="field"><label>ثواني قبل ما تبدأ اللعبة تلقائي (15–600)</label>
+              <input type="text" name="t_lobby" value="{_esc(to.get('lobby', 30))}"/></div>
+            <h3 style="margin-top:18px">🔐 رتب الألعاب الفردية (كت · اسرع · … كلها)</h3>
+            <p class="muted">فارغ = الكل يقدر · الرتب الأعلى من المختارة تشتغل أيضاً</p>
+            <div class="field"><label>مين يبدأ كل الفردية</label>
+              {_role_picker_html(guild, "start_solo", multi=True, selected_ids=sr_solo)}</div>
+            <div class="field"><label>مين يوقف كل الفردية</label>
+              {_role_picker_html(guild, "stop_solo", multi=True, selected_ids=sp_solo)}</div>
+            <h3 style="margin-top:18px">🔐 رتب الألعاب الجماعية (روليت · مافيا · سلسلة · …)</h3>
+            <div class="field"><label>مين يبدأ كل الجماعية</label>
+              {_role_picker_html(guild, "start_group", multi=True, selected_ids=sr_group)}</div>
+            <div class="field"><label>مين يوقف كل الجماعية</label>
+              {_role_picker_html(guild, "stop_group", multi=True, selected_ids=sp_group)}</div>
             <h3 style="margin-top:16px">رومات الألعاب (IDs — فارغ = الكل) أو استخدم /games</h3>
             <div class="field"><input type="text" name="allowed_channels" value="{_esc(ch_txt)}" placeholder="123,456"/></div>
             <h3 style="margin-top:18px">ألعاب فردية (بدون لوبي)</h3>
@@ -1807,10 +1817,10 @@ async def games_settings(request: Request, guild_id: str):
     starter_roles = {}
     stopper_roles = {}
     for k in keys:
-        hard = 1000 if k == "roulette" else 300
+        hard = 1000 if k == "roulette" else (30 if k == "ghmida" else 300)
         timeouts[k] = _int(f"t_{k}", 30, 5, 100)
-        starter_roles[k] = _multi_ids(f"start_{k}")
-        stopper_roles[k] = _multi_ids(f"stop_{k}")
+        starter_roles[k] = []
+        stopper_roles[k] = []
         if k in group:
             min_players[k] = _int(f"min_{k}", 1, 1, hard)
             max_players[k] = _int(f"max_{k}", hard, 1, hard)
@@ -1819,6 +1829,11 @@ async def games_settings(request: Request, guild_id: str):
         else:
             min_players[k] = 1
             max_players[k] = hard
+    starter_roles_solo = _multi_ids("start_solo")
+    starter_roles_group = _multi_ids("start_group")
+    stopper_roles_solo = _multi_ids("stop_solo")
+    stopper_roles_group = _multi_ids("stop_group")
+    timeouts["lobby"] = _int("t_lobby", 30, 15, 600)
     eliminate = {
         "silsila": _int("elim_silsila", 0, 0, 100),
         "replica": _int("elim_replica", 0, 0, 100),
@@ -1852,6 +1867,10 @@ async def games_settings(request: Request, guild_id: str):
             "race_target": race_target,
             "starter_roles": starter_roles,
             "stopper_roles": stopper_roles,
+            "starter_roles_solo": starter_roles_solo,
+            "starter_roles_group": starter_roles_group,
+            "stopper_roles_solo": stopper_roles_solo,
+            "stopper_roles_group": stopper_roles_group,
             "allowed_channels": allowed_channels,
             "log_channel_id": log_channel_id,
         })
@@ -1892,7 +1911,7 @@ async def commands_page(request: Request):
         ("🔊 فويس", ["/set-up-auto-voice", "/room-voice"]),
         ("🎉 فعاليات", [
             "/giveaway", "/gend", "/mo7_win", "/wheel-panel", "/points",
-            "/add-points", "/reset-points", "!bc", "!obc", "/send-broadcast-panel",
+            "/add-points", "/reset-points", "/send-broadcast-panel",
             "/broadcast-bots",
         ]),
         ("🛡️ حماية", ["/set-up-security", "/filter", "/filter add", "/filter list", "/filter toggle"]),
@@ -1927,7 +1946,6 @@ async def systems_page(request: Request):
         ("⭐", "XP والمهام", "مستويات وتوب ومهام ستاف", "/set-up-xp"),
         ("🎁", "قيف أواي", "سحوبات وجوائز", "/giveaway"),
         ("🎡", "العجلة", "نقاط ودعوات", "/wheel-panel"),
-        ("📢", "برودكاست", "إرسال جماعي عبر توكنات", "/send-broadcast-panel"),
         ("📦", "باكاب", "من ديسكورد: /backup و /back", "/help"),
         ("🔐", "الحماية", "سكوريتي ومراقبة", "/set-up-security"),
         ("🤖", "Auto Role", "رتب تلقائية عند الدخول", "/autorole"),

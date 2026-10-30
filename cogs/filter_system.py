@@ -1,9 +1,8 @@
-"""فلتر كلمات وروابط دعوة — إدارة قائمة + كشف تجاوزات بسيطة + استثناء رتب."""
+"""فلتر كلمات وروابط دعوة — إدارة قائمة ومنع التكرار."""
 
 from __future__ import annotations
 
 import re
-import time
 
 import discord
 from discord import app_commands
@@ -22,30 +21,14 @@ _INVITE_RE = re.compile(
     re.IGNORECASE,
 )
 
-# رموز شائعة لتجاوز الفلتر
-_BYPASS_MAP = str.maketrans({
-    "0": "o", "1": "i", "3": "e", "4": "a", "5": "s", "7": "t", "8": "b",
-    "@": "a", "$": "s", "!": "i", "|": "i",
-    "أ": "ا", "إ": "ا", "آ": "ا", "ة": "ه", "ى": "ي",
-})
-_STRIP_RE = re.compile(r"[\s\W_]+", re.UNICODE)
-
 
 def _normalize_word(word: str) -> str:
     return " ".join((word or "").strip().lower().split())
 
 
-def _collapse_for_match(text: str) -> str:
-    """يزيل المسافات والرموز ويوحّد الحروف لتسهيل كشف التجاوز (م ث ل اً)."""
-    t = (text or "").lower().translate(_BYPASS_MAP)
-    return _STRIP_RE.sub("", t)
-
-
 class FilterSystem(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        # (guild_id, user_id) -> list[monotonic] لتتبع التكرار
-        self._strikes: dict[tuple[int, int], list[float]] = {}
 
     async def _cfg(self, guild_id: int) -> dict:
         conf = await Storage.get_guild(guild_id)
@@ -231,100 +214,7 @@ class FilterSystem(commands.Cog):
             "🗑️ تم مسح كل الكلمات من الفلتر.", ephemeral=True
         )
 
-    @filter_group.command(name="exempt", description="إضافة/إزالة رتبة مستثناة من الفلتر")
-    @app_commands.describe(role="الرتبة", action="add = إضافة · remove = إزالة")
-    @app_commands.choices(
-        action=[
-            app_commands.Choice(name="إضافة استثناء", value="add"),
-            app_commands.Choice(name="إزالة استثناء", value="remove"),
-        ]
-    )
-    @app_commands.checks.has_permissions(administrator=True)
-    async def filter_exempt(
-        self,
-        interaction: discord.Interaction,
-        role: discord.Role,
-        action: app_commands.Choice[str],
-    ):
-        cfg = await self._cfg(interaction.guild.id)
-        ids = [int(x) for x in (cfg.get("exempt_role_ids") or []) if x]
-        if action.value == "add":
-            if role.id in ids:
-                await interaction.response.send_message(
-                    f"⚠️ {role.mention} مستثناة أصلاً.", ephemeral=True
-                )
-                return
-            ids.append(role.id)
-            await Storage.update_guild(
-                interaction.guild.id, SECTION, {"exempt_role_ids": ids}
-            )
-            await interaction.response.send_message(
-                f"✅ تم استثناء {role.mention} من فلتر الكلمات.", ephemeral=True
-            )
-        else:
-            if role.id not in ids:
-                await interaction.response.send_message(
-                    f"❌ {role.mention} مش بالقائمة.", ephemeral=True
-                )
-                return
-            ids = [i for i in ids if i != role.id]
-            await Storage.update_guild(
-                interaction.guild.id, SECTION, {"exempt_role_ids": ids}
-            )
-            await interaction.response.send_message(
-                f"🗑️ تم إزالة استثناء {role.mention}.", ephemeral=True
-            )
-
-    @filter_group.command(name="exempt-list", description="عرض الرتب المستثناة من الفلتر")
-    @app_commands.checks.has_permissions(manage_messages=True)
-    async def filter_exempt_list(self, interaction: discord.Interaction):
-        cfg = await self._cfg(interaction.guild.id)
-        ids = [int(x) for x in (cfg.get("exempt_role_ids") or []) if x]
-        if not ids:
-            await interaction.response.send_message(
-                "القائمة فارغة. استخدم `/filter exempt` لإضافة رتبة.", ephemeral=True
-            )
-            return
-        mentions = []
-        for rid in ids:
-            role = interaction.guild.get_role(rid)
-            mentions.append(role.mention if role else f"`{rid}`")
-        await interaction.response.send_message(
-            "**الرتب المستثناة من الفلتر:**\n" + "\n".join(f"• {m}" for m in mentions),
-            ephemeral=True,
-        )
-
     # ---------- المراقبة ----------
-
-    def _match_forbidden(self, content: str, words: list) -> str | None:
-        """يكشف الكلمة حتى لو مكتوبة بمسافات أو رموز أو leetspeak بسيط."""
-        if not content or not words:
-            return None
-        content_l = content.lower()
-        collapsed = _collapse_for_match(content)
-        for word in words:
-            if not word:
-                continue
-            w = word.lower().strip()
-            if not w:
-                continue
-            # تطابق مباشر
-            if w in content_l:
-                return w
-            # تطابق بعد إزالة المسافات/الرموز (م ث ل اً → مثلا)
-            cw = _collapse_for_match(w)
-            if cw and len(cw) >= 2 and cw in collapsed:
-                return w
-        return None
-
-    def _add_strike(self, guild_id: int, user_id: int) -> int:
-        """يرجع عدد المخالفات خلال آخر 10 دقائق."""
-        key = (guild_id, user_id)
-        now = time.monotonic()
-        bucket = self._strikes.setdefault(key, [])
-        bucket.append(now)
-        self._strikes[key] = [t for t in bucket if now - t < 600]
-        return len(self._strikes[key])
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -335,8 +225,6 @@ class FilterSystem(commands.Cog):
         # الأدمن واللي عندهم Manage Messages ما ينفلتروا
         if message.author.guild_permissions.manage_messages:
             return
-        if message.author.guild_permissions.administrator:
-            return
 
         cfg = await self._cfg(message.guild.id)
         if not cfg.get("enabled", True):
@@ -346,39 +234,31 @@ class FilterSystem(commands.Cog):
             return
 
         content = message.content or ""
+        content_l = content.lower()
         hit = None
 
-        matched = self._match_forbidden(content, cfg.get("words") or [])
-        if matched:
-            hit = f"كلمة ممنوعة: `{matched}`"
+        # كلمات ممنوعة
+        for word in cfg.get("words") or []:
+            if word and word in content_l:
+                hit = f"كلمة ممنوعة: `{word}`"
+                break
 
+        # دعوات
         if not hit and cfg.get("block_invites", True) and _INVITE_RE.search(content):
             hit = "رابط دعوة ديسكورد"
 
         if not hit:
             return
 
-        # حذف الرسالة فوراً — ما تقدر توصل للروم
         try:
             await message.delete()
         except (discord.Forbidden, discord.HTTPException):
             return
 
-        strikes = self._add_strike(message.guild.id, message.author.id)
-        timeout_note = ""
-        # بعد 3 مخالفات خلال 10 دقائق → تايم أوت 5 دقائق
-        if strikes >= 3 and message.author.top_role < message.guild.me.top_role:
-            try:
-                until = discord.utils.utcnow() + __import__("datetime").timedelta(minutes=5)
-                await message.author.timeout(until, reason=f"فلتر كلمات — {strikes} مخالفات")
-                timeout_note = " · تايم أوت 5 دقائق"
-            except (discord.Forbidden, discord.HTTPException):
-                pass
-
         try:
-            await message.channel.send(
-                f"⚠️ {message.author.mention} رسالتك انحذفت — {hit}.{timeout_note}",
-                delete_after=8,
+            warn = await message.channel.send(
+                f"⚠️ {message.author.mention} رسالتك انحذفت — {hit}.",
+                delete_after=6,
             )
         except discord.HTTPException:
             pass
@@ -388,10 +268,9 @@ class FilterSystem(commands.Cog):
             color=discord.Color.orange(),
             timestamp=discord.utils.utcnow(),
         )
-        embed.add_field(name="العضو", value=f"{message.author.mention} (`{message.author.id}`)", inline=True)
+        embed.add_field(name="العضو", value=message.author.mention, inline=True)
         embed.add_field(name="القناة", value=message.channel.mention, inline=True)
         embed.add_field(name="السبب", value=hit, inline=False)
-        embed.add_field(name="المخالفات (10 دقائق)", value=str(strikes), inline=True)
         snippet = content[:300] + ("…" if len(content) > 300 else "")
         if snippet:
             embed.add_field(name="المحتوى", value=snippet, inline=False)
@@ -404,8 +283,6 @@ class FilterSystem(commands.Cog):
     @filter_invites.error
     @filter_log.error
     @filter_clear.error
-    @filter_exempt.error
-    @filter_exempt_list.error
     async def _err(self, interaction: discord.Interaction, error):
         if isinstance(error, app_commands.MissingPermissions):
             return

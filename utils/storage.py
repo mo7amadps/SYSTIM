@@ -557,7 +557,7 @@ def _default_guild() -> dict:
                 "kat": 300, "asra": 300, "player": 300, "tafkik": 300, "tajmee": 300,
                 "silsila": 300, "replica": 300, "roulette": 1000, "mafia": 300,
                 "sabaq": 300, "lughz": 300, "arqam": 300, "mufrad": 300, "jam": 300,
-                "harf": 300, "xo": 2, "ghmida": 300, "khammen": 300,
+                "harf": 300, "xo": 2, "ghmida": 30, "khammen": 300,
                 "aks": 300,
             },
             "eliminate": {
