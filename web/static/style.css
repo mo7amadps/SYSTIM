@@ -378,10 +378,6 @@ body { line-height: 1.6; letter-spacing: 0.01em; }
 .toggle-row label { display: flex; flex-direction: row; gap: 10px; align-items: center; white-space: nowrap; }
 
 
-.game-block{background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.08);border-radius:12px;margin:8px 0;padding:0}
-.game-block>summary{cursor:pointer;padding:12px 14px;font-size:0.95rem;list-style:none}
-.game-block>summary::-webkit-details-marker{display:none}
-.game-block[open]>summary{border-bottom:1px solid rgba(255,255,255,0.06)}
 .game-body{padding:12px 14px 16px}
 .role-details{margin-top:6px}
 .role-summary{cursor:pointer;padding:8px 10px;background:rgba(0,0,0,0.25);border-radius:8px;font-size:0.85rem;color:#a8b3cf}

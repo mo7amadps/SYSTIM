@@ -1074,6 +1074,8 @@ async def guild_detail(request: Request, guild_id: str):
         sr_group = gcfg.get("starter_roles_group") or []
         sp_solo = gcfg.get("stopper_roles_solo") or []
         sp_group = gcfg.get("stopper_roles_group") or []
+        lobby_to = gcfg.get("lobby_timeouts") or {}
+        lobby_modes = gcfg.get("lobby_modes") or {}
         chans = gcfg.get("allowed_channels") or []
         race_target = gcfg.get("race_target", 10)
         log_ch = gcfg.get("log_channel_id")
@@ -1106,9 +1108,12 @@ async def guild_detail(request: Request, guild_id: str):
         for key, label, cmd, def_t in solo_meta:
             solo_blocks.append(f"""
             <details class="game-block">
-              <summary><b>{_esc(label)}</b> <code>{_esc(cmd)}</code> · { _esc(to.get(key, def_t)) }ث</summary>
+              <summary>
+                <span><b>{_esc(label)}</b> <span class="cmd-badge">{_esc(cmd)}</span></span>
+                <span class="time-badge">{_esc(to.get(key, def_t))}ث دور</span>
+              </summary>
               <div class="game-body">
-                <div class="field"><label>الوقت (ثواني)</label>
+                <div class="field"><label>⏱️ وقت الجواب / الدور (ثواني) — مو اللوبي</label>
                   <input type="text" name="t_{key}" value="{_esc(to.get(key, def_t))}"/></div>
               </div>
             </details>""")
@@ -1117,10 +1122,13 @@ async def guild_detail(request: Request, guild_id: str):
             hard = 1000 if key == "roulette" else (30 if key == "ghmida" else 300)
             group_blocks.append(f"""
             <details class="game-block">
-              <summary><b>{_esc(label)}</b> <code>{_esc(cmd)}</code> · { _esc(to.get(key, def_t)) }ث</summary>
+              <summary>
+                <span><b>{_esc(label)}</b> <span class="cmd-badge">{_esc(cmd)}</span></span>
+                <span class="time-badge">{_esc(to.get(key, def_t))}ث دور</span>
+              </summary>
               <div class="game-body">
                 <div class="grid-2">
-                  <div class="field"><label>الوقت</label>
+                  <div class="field"><label>⏱️ وقت الدور / الجولة (ث) — منفصل عن اللوبي</label>
                     <input type="text" name="t_{key}" value="{_esc(to.get(key, def_t))}"/></div>
                   <div class="field"><label>أقل لاعبين</label>
                     <input type="text" name="min_{key}" value="{_esc(mn.get(key, def_min))}"/></div>
@@ -1137,9 +1145,76 @@ async def guild_detail(request: Request, guild_id: str):
           <form method="post" action="/guild/{guild_id}/games-settings" class="form manage-form">
             <h3>روم سجل الألعاب (فوز / إيقاف)</h3>
             {_channel_picker_html(guild, "log_channel_id", selected_id=log_ch)}
-            <h3 style="margin-top:16px">⏱️ وقت دخول اللوبي (كل الجماعية)</h3>
-            <div class="field"><label>ثواني قبل ما تبدأ اللعبة تلقائي (15–600)</label>
+            <h3 style="margin-top:16px">⏱️ لوبي الجماعية · كل لعبة منفصلة</h3>
+            <p class="muted">وقت اللوبي ≠ وقت الدور/الطرد · الدور يتعدل من بطاقة كل لعبة تحت</p>
+            <div class="field"><label>وقت لوبي افتراضي (15–600ث)</label>
               <input type="text" name="t_lobby" value="{_esc(to.get('lobby', 30))}"/></div>
+            <div class="lobby-grid">
+              <div class="lobby-card"><h4>🎡 روليت</h4>
+                <div class="field"><label>وقت اللوبي (ث)</label>
+                  <input type="text" name="lobby_t_roulette" value="{_esc(lobby_to.get('roulette', to.get('lobby', 30)))}"/></div>
+                <div class="field"><label>وضع البداية</label>
+                  <select name="lobby_m_roulette">
+                    <option value="timer" {"selected" if (lobby_modes.get("roulette") or "timer")=="timer" else ""}>⏰ عداد تلقائي</option>
+                    <option value="button" {"selected" if lobby_modes.get("roulette")=="button" else ""}>▶️ زر بدء</option>
+                  </select></div>
+                <p class="muted" style="font-size:12px;margin:6px 0 0">وقت الطرد من بطاقة روليت تحت ← «الوقت»</p>
+              </div>
+              <div class="lobby-card"><h4>🎭 مافيا</h4>
+                <div class="field"><label>وقت اللوبي (ث)</label>
+                  <input type="text" name="lobby_t_mafia" value="{_esc(lobby_to.get('mafia', to.get('lobby', 30)))}"/></div>
+                <div class="field"><label>وضع البداية</label>
+                  <select name="lobby_m_mafia">
+                    <option value="timer" {"selected" if (lobby_modes.get("mafia") or "timer")=="timer" else ""}>⏰ عداد</option>
+                    <option value="button" {"selected" if lobby_modes.get("mafia")=="button" else ""}>▶️ زر بدء</option>
+                  </select></div>
+              </div>
+              <div class="lobby-card"><h4>🔗 سلسلة</h4>
+                <div class="field"><label>وقت اللوبي (ث)</label>
+                  <input type="text" name="lobby_t_silsila" value="{_esc(lobby_to.get('silsila', to.get('lobby', 30)))}"/></div>
+                <div class="field"><label>وضع البداية</label>
+                  <select name="lobby_m_silsila">
+                    <option value="timer" {"selected" if (lobby_modes.get("silsila") or "timer")=="timer" else ""}>⏰ عداد</option>
+                    <option value="button" {"selected" if lobby_modes.get("silsila")=="button" else ""}>▶️ زر بدء</option>
+                  </select></div>
+              </div>
+              <div class="lobby-card"><h4>🙈 غميضة</h4>
+                <div class="field"><label>وقت اللوبي (ث)</label>
+                  <input type="text" name="lobby_t_ghmida" value="{_esc(lobby_to.get('ghmida', to.get('lobby', 30)))}"/></div>
+                <div class="field"><label>وضع البداية</label>
+                  <select name="lobby_m_ghmida">
+                    <option value="timer" {"selected" if (lobby_modes.get("ghmida") or "timer")=="timer" else ""}>⏰ عداد</option>
+                    <option value="button" {"selected" if lobby_modes.get("ghmida")=="button" else ""}>▶️ زر بدء</option>
+                  </select></div>
+              </div>
+              <div class="lobby-card"><h4>📝 ريبلكا</h4>
+                <div class="field"><label>وقت اللوبي (ث)</label>
+                  <input type="text" name="lobby_t_replica" value="{_esc(lobby_to.get('replica', to.get('lobby', 30)))}"/></div>
+                <div class="field"><label>وضع البداية</label>
+                  <select name="lobby_m_replica">
+                    <option value="timer" {"selected" if (lobby_modes.get("replica") or "timer")=="timer" else ""}>⏰ عداد</option>
+                    <option value="button" {"selected" if lobby_modes.get("replica")=="button" else ""}>▶️ زر بدء</option>
+                  </select></div>
+              </div>
+              <div class="lobby-card"><h4>🏁 سباق</h4>
+                <div class="field"><label>وقت اللوبي (ث)</label>
+                  <input type="text" name="lobby_t_sabaq" value="{_esc(lobby_to.get('sabaq', to.get('lobby', 30)))}"/></div>
+                <div class="field"><label>وضع البداية</label>
+                  <select name="lobby_m_sabaq">
+                    <option value="timer" {"selected" if (lobby_modes.get("sabaq") or "timer")=="timer" else ""}>⏰ عداد</option>
+                    <option value="button" {"selected" if lobby_modes.get("sabaq")=="button" else ""}>▶️ زر بدء</option>
+                  </select></div>
+              </div>
+              <div class="lobby-card"><h4>❌ XO</h4>
+                <div class="field"><label>وقت اللوبي (ث)</label>
+                  <input type="text" name="lobby_t_xo" value="{_esc(lobby_to.get('xo', to.get('lobby', 30)))}"/></div>
+                <div class="field"><label>وضع البداية</label>
+                  <select name="lobby_m_xo">
+                    <option value="timer" {"selected" if (lobby_modes.get("xo") or "timer")=="timer" else ""}>⏰ عداد</option>
+                    <option value="button" {"selected" if lobby_modes.get("xo")=="button" else ""}>▶️ زر بدء</option>
+                  </select></div>
+              </div>
+            </div>
             <h3 style="margin-top:18px">🔐 رتب الألعاب الفردية (كت · اسرع · … كلها)</h3>
             <p class="muted">فارغ = الكل يقدر · الرتب الأعلى من المختارة تشتغل أيضاً</p>
             <div class="field"><label>مين يبدأ كل الفردية</label>
@@ -1834,6 +1909,12 @@ async def games_settings(request: Request, guild_id: str):
     stopper_roles_solo = _multi_ids("stop_solo")
     stopper_roles_group = _multi_ids("stop_group")
     timeouts["lobby"] = _int("t_lobby", 30, 15, 600)
+    lobby_timeouts = {}
+    lobby_modes = {}
+    for gk in ["roulette", "mafia", "silsila", "ghmida", "replica", "sabaq", "xo"]:
+        lobby_timeouts[gk] = _int(f"lobby_t_{gk}", timeouts["lobby"], 15, 600)
+        m = str(form.get(f"lobby_m_{gk}") or "timer").strip().lower()
+        lobby_modes[gk] = m if m in ("timer", "button") else "timer"
     eliminate = {
         "silsila": _int("elim_silsila", 0, 0, 100),
         "replica": _int("elim_replica", 0, 0, 100),
@@ -1871,6 +1952,8 @@ async def games_settings(request: Request, guild_id: str):
             "starter_roles_group": starter_roles_group,
             "stopper_roles_solo": stopper_roles_solo,
             "stopper_roles_group": stopper_roles_group,
+            "lobby_timeouts": lobby_timeouts,
+            "lobby_modes": lobby_modes,
             "allowed_channels": allowed_channels,
             "log_channel_id": log_channel_id,
         })

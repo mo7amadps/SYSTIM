@@ -620,13 +620,44 @@ class PlayAgainView(discord.ui.View):
 
 
 class LobbyView(discord.ui.View):
-    """دخول / خروج — العداد يبدأ اللعبة تلقائي."""
+    """دخول / خروج — عداد أو زر بدء."""
 
-    def __init__(self, cog: "GamesSystem", channel_id: int, game_type: str):
+    def __init__(self, cog: "GamesSystem", channel_id: int, game_type: str, show_start: bool = False):
         super().__init__(timeout=600)
         self.cog = cog
         self.channel_id = channel_id
         self.game_type = game_type
+        if show_start:
+            btn = discord.ui.Button(label="بدء", style=discord.ButtonStyle.success, emoji="▶️", row=1)
+
+            async def _start(interaction: discord.Interaction):
+                st = _ACTIVE.get(self.channel_id)
+                if not st or st.get("phase") != "lobby" or st.get("type") != self.game_type:
+                    await interaction.response.send_message("ما في لوبي.", ephemeral=True)
+                    return
+                if interaction.user.id != st.get("host_id") and not (
+                    isinstance(interaction.user, discord.Member)
+                    and (interaction.user.guild_permissions.administrator
+                         or interaction.user.guild_permissions.manage_guild)
+                ):
+                    await interaction.response.send_message("بس المضيف أو الإدارة.", ephemeral=True)
+                    return
+                n = len(st.get("players") or {})
+                mn = int(st.get("min_players") or 2)
+                if n < mn:
+                    await interaction.response.send_message(f"لازم {mn} لاعبين على الأقل.", ephemeral=True)
+                    return
+                await interaction.response.defer()
+                st["phase"] = "starting"
+                try:
+                    msg = await interaction.channel.fetch_message(st["msg_id"])
+                    await msg.edit(view=None)
+                except Exception:
+                    pass
+                await self.cog._lobby_start(st, interaction.channel)
+
+            btn.callback = _start
+            self.add_item(btn)
 
     @discord.ui.button(label="دخول", style=discord.ButtonStyle.secondary, emoji="👤")
     async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -636,28 +667,25 @@ class LobbyView(discord.ui.View):
             return
         max_p = int(st.get("max_players") or 300)
         if interaction.user.id not in st["players"] and len(st["players"]) >= max_p:
-            await interaction.response.send_message(f"اللعبة ممتلئة (حد أقصى {max_p}).", ephemeral=True)
+            await interaction.response.send_message(f"اللعبة ممتلئة (حد {max_p}).", ephemeral=True)
             return
         st["players"][interaction.user.id] = interaction.user.display_name
         await interaction.response.send_message("تم دخولك ✅", ephemeral=True)
         await self.cog._lobby_refresh(st)
 
-    @discord.ui.button(label="خروج", style=discord.ButtonStyle.secondary, emoji="👤")
+    @discord.ui.button(label="خروج", style=discord.ButtonStyle.secondary, emoji="🚪")
     async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
         st = _ACTIVE.get(self.channel_id)
         if not st or st.get("phase") != "lobby":
             await interaction.response.send_message("ما في لوبي.", ephemeral=True)
             return
-        uid = interaction.user.id
-        if uid == st.get("host_id") and len(st.get("players") or {}) > 1:
-            await interaction.response.send_message("المضيف يطلع لما يبقى لحاله أو ينتهي العداد.", ephemeral=True)
-            return
-        st["players"].pop(uid, None)
+        st["players"].pop(interaction.user.id, None)
         if not st["players"]:
             await interaction.response.send_message("خرجت · اللوبي انلغى.", ephemeral=True)
             await self.cog._clear(self.channel_id)
             try:
-                await interaction.message.edit(view=None)
+                msg = await interaction.channel.fetch_message(st["msg_id"])
+                await msg.edit(view=None)
             except Exception:
                 pass
             return
@@ -666,62 +694,46 @@ class LobbyView(discord.ui.View):
 
 
 
-def smart_eliminate_quota(n: int, fixed: int = 0) -> int:
-    """كم لاعب يُستبعد كهدف لكل جولة. fixed>0 من الداشبورد يلغي التلقائي."""
-    if fixed and fixed > 0:
-        return max(1, min(int(fixed), max(1, n - 1)))
-    if n <= 2:
-        return 1
-    if n <= 5:
-        return 1
-    if n <= 10:
-        return max(1, n // 4)
-    if n <= 15:
-        return max(2, n // 5)
-    if n <= 25:
-        return max(3, n // 5)
-    if n <= 40:
-        return max(4, n // 5)
-    return max(5, n // 6)
-
-
-
-async def _player_limits(guild_id: int, game_key: str, default_min: int = 1, default_max: int = 300) -> tuple[int, int]:
-    cfg = await _cfg(guild_id)
-    if game_key == "roulette":
-        hard_max = 1000
-    elif game_key == "ghmida":
-        hard_max = 30
-    else:
-        hard_max = 300
-    try:
-        mn = int((cfg.get("min_players") or {}).get(game_key, default_min))
-    except Exception:
-        mn = default_min
-    try:
-        mx = int((cfg.get("max_players") or {}).get(game_key, default_max if game_key != "roulette" else 1000))
-    except Exception:
-        mx = default_max if game_key != "roulette" else 1000
-    mn = max(1, min(hard_max, mn))
-    mx = max(mn, min(hard_max, mx))
-    return mn, mx
-
-async def _eliminate_setting(guild_id: int, game_key: str) -> int:
-    """0 = تلقائي."""
-    cfg = await _cfg(guild_id)
-    try:
-        return int((cfg.get("eliminate") or {}).get(game_key) or 0)
-    except Exception:
-        return 0
-
-
 class RouletteJoinView(discord.ui.View):
-    """دخول / خروج — الروليت تبدأ تلقائي بالعداد."""
+    """دخول / خروج — عداد أو زر بدء."""
 
-    def __init__(self, cog: "GamesSystem", channel_id: int):
+    def __init__(self, cog: "GamesSystem", channel_id: int, show_start: bool = False):
         super().__init__(timeout=900)
         self.cog = cog
         self.channel_id = channel_id
+        if show_start:
+            btn = discord.ui.Button(label="بدء", style=discord.ButtonStyle.success, emoji="▶️", row=1)
+
+            async def _start(interaction: discord.Interaction):
+                st = _ACTIVE.get(self.channel_id)
+                if not st or st.get("type") != "roulette" or st.get("phase") != "join":
+                    await interaction.response.send_message("ما في لوبي.", ephemeral=True)
+                    return
+                host_ok = interaction.user.id == st.get("host_id")
+                admin_ok = isinstance(interaction.user, discord.Member) and (
+                    interaction.user.guild_permissions.administrator
+                    or interaction.user.guild_permissions.manage_guild
+                )
+                if not host_ok and not admin_ok:
+                    await interaction.response.send_message("بس المضيف أو الإدارة.", ephemeral=True)
+                    return
+                n = len(st.get("players") or {})
+                mn = int(st.get("min_players") or 2)
+                if n < mn:
+                    await interaction.response.send_message(f"لازم {mn} لاعبين على الأقل.", ephemeral=True)
+                    return
+                await interaction.response.defer()
+                st["phase"] = "starting"
+                try:
+                    msg = await interaction.channel.fetch_message(st["msg_id"])
+                    await msg.edit(view=None)
+                except Exception:
+                    pass
+                await interaction.channel.send(f"🎡 بدأت الروليت بـ **{n}** لاعب!")
+                await self.cog._roulette_begin(st)
+
+            btn.callback = _start
+            self.add_item(btn)
 
     @discord.ui.button(label="دخول", style=discord.ButtonStyle.secondary, emoji="👤")
     async def join(self, interaction: discord.Interaction, button: discord.ui.Button):
@@ -738,27 +750,26 @@ class RouletteJoinView(discord.ui.View):
         await interaction.response.send_message("تم دخولك للروليت ✅", ephemeral=True)
         await self.cog._roulette_refresh(st)
 
-    @discord.ui.button(label="خروج", style=discord.ButtonStyle.secondary, emoji="👤")
+    @discord.ui.button(label="خروج", style=discord.ButtonStyle.secondary, emoji="🚪")
     async def leave(self, interaction: discord.Interaction, button: discord.ui.Button):
         st = _ACTIVE.get(self.channel_id)
         if not st or st.get("type") != "roulette" or st.get("phase") != "join":
             await interaction.response.send_message("ما في روليت مفتوحة.", ephemeral=True)
             return
         uid = interaction.user.id
-        if uid == st.get("host_id") and len(st.get("players") or {}) > 1:
-            await interaction.response.send_message("المضيف يبقى حتى ينتهي العداد أو يبقى لحاله.", ephemeral=True)
-            return
         st["players"].pop(uid, None)
         if not st["players"]:
             await interaction.response.send_message("خرجت · الروليت انلغت.", ephemeral=True)
             await self.cog._clear(self.channel_id)
             try:
-                await interaction.message.edit(view=None)
+                msg = await interaction.channel.fetch_message(st["msg_id"])
+                await msg.edit(view=None)
             except Exception:
                 pass
             return
         await interaction.response.send_message("خرجت من الروليت.", ephemeral=True)
         await self.cog._roulette_refresh(st)
+
 
 
 class RoulettePickView(discord.ui.View):
@@ -1255,16 +1266,28 @@ class GamesSystem(commands.Cog):
         if isinstance(host, discord.Member) and not await _can_start(host, game_type):
             return  # صامت
         cfg_min, cfg_max = await _player_limits(channel.guild.id, game_type, min_players, 300)
-        lobby_secs = await _timeout(channel.guild.id, "lobby", 30)
-        lobby_secs = max(10, min(600, int(lobby_secs)))
+        cfg = await _cfg(channel.guild.id)
+        lobby_map = cfg.get("lobby_timeouts") or {}
+        try:
+            lobby_secs = int(lobby_map.get(game_type) or (cfg.get("timeouts") or {}).get("lobby") or 30)
+        except Exception:
+            lobby_secs = 30
+        lobby_secs = max(15, min(600, int(lobby_secs)))
+        modes = cfg.get("lobby_modes") or {}
+        lobby_mode = str(modes.get(game_type) or cfg.get("lobby_mode") or "timer").lower()
+        if lobby_mode not in ("timer", "button"):
+            lobby_mode = "timer"
         emb = discord.Embed(
             title=title,
             description="للدخول على اللعبة قم بالضغط" + chr(10) + "على زر **دخول**",
             color=discord.Color.from_rgb(20, 24, 40),
         )
-        emb.set_author(name=f"⏰ ستبدأ اللعبة خلال {lobby_secs} ثانية")
+        if lobby_mode == "button":
+            emb.set_author(name="اضغط «بدء» لما تجهزوا")
+        else:
+            emb.set_author(name=f"⏰ ستبدأ اللعبة خلال {lobby_secs} ثانية")
         emb.set_footer(text=f"(1/{cfg_max})")
-        view = LobbyView(self, channel.id, game_type)
+        view = LobbyView(self, channel.id, game_type, show_start=(lobby_mode == "button"))
         msg = await channel.send(embed=emb, view=view)
         st = {
             "type": game_type,
@@ -1277,6 +1300,7 @@ class GamesSystem(commands.Cog):
             "max_players": cfg_max,
             "lobby_secs": lobby_secs,
             "lobby_ends": time.monotonic() + lobby_secs,
+            "lobby_mode": lobby_mode,
             "title": title,
             "desc": desc,
         }
@@ -1289,7 +1313,8 @@ class GamesSystem(commands.Cog):
                     pass
         _ACTIVE[channel.id] = st
         await self._lobby_refresh(st)
-        asyncio.create_task(self._lobby_countdown(channel.id))
+        if lobby_mode == "timer":
+            asyncio.create_task(self._lobby_countdown(channel.id))
 
     async def _lobby_refresh(self, st: dict):
         ch = self.bot.get_channel(st["channel_id"])
@@ -1325,10 +1350,22 @@ class GamesSystem(commands.Cog):
             description="للدخول على اللعبة قم بالضغط" + chr(10) + "على زر **دخول**" + (extra or ""),
             color=discord.Color.from_rgb(20, 24, 40),
         )
-        emb.set_author(name=f"⏰ ستبدأ اللعبة خلال {left} ثانية")
+        mode = st.get("lobby_mode") or "timer"
+        if mode == "button":
+            emb.set_author(name="اضغط «بدء» لما تجهزوا")
+        else:
+            emb.set_author(name=f"⏰ ستبدأ اللعبة خلال {left} ثانية")
         emb.set_footer(text=f"({n}/{mx})")
         try:
-            await msg.edit(embed=emb, view=LobbyView(self, st["channel_id"], st["type"]))
+            await msg.edit(
+                embed=emb,
+                view=LobbyView(
+                    self,
+                    st["channel_id"],
+                    st["type"],
+                    show_start=(mode == "button"),
+                ),
+            )
         except Exception:
             pass
 
@@ -2217,18 +2254,37 @@ class GamesSystem(commands.Cog):
             return
         cfg = await _cfg(ctx.guild.id)
         per = int(cfg.get("roulette_max_per_page") or 20)
+        # وقت الطرد/الدور — مستقل تماماً عن اللوبي
         turn_timeout = await _timeout(ctx.guild.id, "roulette", 30)
-        lobby_secs = await _timeout(ctx.guild.id, "lobby", 30)
-        lobby_secs = max(15, min(600, int(lobby_secs)))
+        # وقت اللوبي — من lobby_timeouts.roulette أو العام
+        lobby_map = cfg.get("lobby_timeouts") or {}
+        try:
+            lobby_secs = int(lobby_map.get("roulette") or (cfg.get("timeouts") or {}).get("lobby") or 30)
+        except Exception:
+            lobby_secs = 30
+        lobby_secs = max(15, min(600, lobby_secs))
+        modes = cfg.get("lobby_modes") or {}
+        lobby_mode = str(modes.get("roulette") or cfg.get("lobby_mode") or "timer").lower()
+        if lobby_mode not in ("timer", "button"):
+            lobby_mode = "timer"
         _mn, _mx = await _player_limits(ctx.guild.id, "roulette", 2, 1000)
         emb = discord.Embed(
-            title="روليت",
-            description="للدخول على اللعبة قم بالضغط" + chr(10) + "على زر **دخول**",
+            title="🎡 روليت",
+            description="للدخول على اللعبة اضغط **دخول**",
             color=discord.Color.from_rgb(20, 24, 40),
         )
-        emb.set_author(name=f"⏰ ستبدأ اللعبة خلال {lobby_secs} ثانية")
-        emb.set_footer(text=f"(1/{_mx})")
-        view = RouletteJoinView(self, ctx.channel.id)
+        if lobby_mode == "button":
+            emb.set_author(name="اضغط «بدء» لما تجهزوا")
+        else:
+            emb.set_author(name=f"⏰ اللوبي: {lobby_secs}ث")
+        emb.set_footer(text=f"(1/{_mx}) · دور الطرد: {turn_timeout}ث")
+        try:
+            if ctx.guild and ctx.guild.icon:
+                emb.set_thumbnail(url=ctx.guild.icon.url)
+                emb.set_image(url=ctx.guild.icon.url)
+        except Exception:
+            pass
+        view = RouletteJoinView(self, ctx.channel.id, show_start=(lobby_mode == "button"))
         msg = await ctx.send(embed=emb, view=view)
         st = {
             "type": "roulette",
@@ -2237,16 +2293,18 @@ class GamesSystem(commands.Cog):
             "host_id": ctx.author.id,
             "msg_id": msg.id,
             "per_page": per,
-            "timeout": turn_timeout,
+            "timeout": turn_timeout,  # وقت الطرد فقط
             "channel_id": ctx.channel.id,
             "min_players": _mn,
             "max_players": _mx,
-            "lobby_secs": lobby_secs,
+            "lobby_secs": lobby_secs,  # وقت اللوبي فقط
             "lobby_ends": time.monotonic() + lobby_secs,
+            "lobby_mode": lobby_mode,
         }
         _ACTIVE[ctx.channel.id] = st
         await self._roulette_refresh(st)
-        asyncio.create_task(self._roulette_countdown(ctx.channel.id))
+        if lobby_mode == "timer":
+            asyncio.create_task(self._roulette_countdown(ctx.channel.id))
 
     async def _roulette_refresh(self, st: dict):
         ch = self.bot.get_channel(st["channel_id"])
@@ -2258,18 +2316,31 @@ class GamesSystem(commands.Cog):
             return
         n = len(st.get("players") or {})
         mx = int(st.get("max_players") or 1000)
-        left = 0
-        if st.get("lobby_ends"):
-            left = max(0, int(st["lobby_ends"] - time.monotonic()))
+        mode = st.get("lobby_mode") or "timer"
+        turn_t = int(st.get("timeout") or 30)
         emb = discord.Embed(
-            title="روليت",
-            description="للدخول على اللعبة قم بالضغط" + chr(10) + "على زر **دخول**",
+            title="🎡 روليت",
+            description=f"اضغط **دخول** للانضمام" + chr(10) + f"اللاعبون: **{n}/{mx}**",
             color=discord.Color.from_rgb(20, 24, 40),
         )
-        emb.set_author(name=f"⏰ ستبدأ اللعبة خلال {left} ثانية")
-        emb.set_footer(text=f"({n}/{mx})")
+        if mode == "button":
+            emb.set_author(name="اضغط «بدء» لما تجهزوا")
+        else:
+            left = max(0, int(st.get("lobby_ends", 0) - time.monotonic())) if st.get("lobby_ends") else 0
+            emb.set_author(name=f"⏰ اللوبي: {left}ث متبقية")
+        emb.set_footer(text=f"({n}/{mx}) · دور الطرد: {turn_t}ث")
         try:
-            await msg.edit(embed=emb, view=RouletteJoinView(self, st["channel_id"]))
+            g = ch.guild
+            if g and g.icon:
+                emb.set_thumbnail(url=g.icon.url)
+                emb.set_image(url=g.icon.url)
+        except Exception:
+            pass
+        try:
+            await msg.edit(
+                embed=emb,
+                view=RouletteJoinView(self, st["channel_id"], show_start=(mode == "button")),
+            )
         except Exception:
             pass
 
@@ -2301,7 +2372,7 @@ class GamesSystem(commands.Cog):
                 await msg.edit(view=None)
             except Exception:
                 pass
-            await ch.send(f"⏱️ انتهى الوقت · ما اكتمل العدد ({n}/{mn}).")
+            await ch.send(f"⏱️ انتهى اللوبي · ما اكتمل العدد ({n}/{mn}).")
             await self._clear(channel_id)
             return
         try:
@@ -2336,14 +2407,32 @@ class GamesSystem(commands.Cog):
         chooser = random.choice(players)
         st["chooser"] = chooser
         timeout = int(st.get("timeout") or 30)
-        emb = _game_embed(
-            "🎡 اختيار للطرد",
-            f"<@{chooser}> عندك **{timeout}** ثانية.\n"
-            f"الباقي: **{len(players)}** لاعب\n"
-            "اختر من القوائم (رقم الدخول | الاسم) أو **طرد عشوائي**.",
+        emb = discord.Embed(
+            title="🎡 دور الطرد",
+            description=(
+                f"لديك **{timeout}** ثانية لاختيار لاعب لطرده"
+                + chr(10)
+                + f"الباقي: **{len(players)}** لاعب"
+                + chr(10)
+                + "استخدم القوائم أو **طرد عشوائي**"
+            ),
+            color=discord.Color.from_rgb(20, 24, 40),
         )
+        try:
+            g = channel.guild
+            if g and g.icon:
+                emb.set_thumbnail(url=g.icon.url)
+        except Exception:
+            pass
+        emb.set_footer(text=f"رقم الدور · {len(players)} متبقين")
         view = RoulettePickView(self, channel.id, chooser, 0)
-        msg = await channel.send(embed=emb, view=view)
+        # منشن ظاهر عشان يتنبّه
+        msg = await channel.send(
+            content=f"<@{chooser}> — دورك تختار مين ينطرد!",
+            embed=emb,
+            view=view,
+        )
+
         st["pick_msg"] = msg.id
         st["deadline"] = time.monotonic() + timeout
 
@@ -2951,13 +3040,37 @@ class GamesSystem(commands.Cog):
 
     @commands.command(name="العاب", aliases=["ألعاب"])
     async def list_games(self, ctx: commands.Context):
-        desc = (
-            "**فردية:**"
-            + chr(10) + "`!كت` `!اسرع` `!لاعب` `!تفكيك` `!تجميع` `!لغز` `!ارقام` `!مفرد` `!جمع` `!حرف` `!عكس` `!خمن`"
-            + chr(10) + chr(10) + "**جماعية:**"
-            + chr(10) + "`!سلسلة` `!ريبلكا` `!سباق` `!xo` `!غميضة` `!روليت` `!مافيا`"
+        emb = discord.Embed(
+            title="🎮 قائمة الألعاب",
+            description="اكتب الأمر بالشات عشان تبدأ · الجماعية تحتاج لوبي",
+            color=discord.Color.from_rgb(88, 101, 242),
         )
-        await ctx.reply(embed=_game_embed("🎮 قائمة الألعاب", desc), mention_author=False)
+        solo = (
+            "`!كت` سؤال نقاش" + chr(10)
+            + "`!اسرع` اكتب بأسرع وقت" + chr(10)
+            + "`!لاعب` خمّن اللاعب" + chr(10)
+            + "`!تفكيك` / `!تجميع`" + chr(10)
+            + "`!لغز` · `!ارقام` · `!مفرد` · `!جمع`" + chr(10)
+            + "`!حرف` · `!عكس` · `!خمن`"
+        )
+        group = (
+            "`!روليت` طرد بالدور" + chr(10)
+            + "`!مافيا` أدوار سرية" + chr(10)
+            + "`!سلسلة` كلمات مترابطة" + chr(10)
+            + "`!ريبلكا` اسم حيوان جماد" + chr(10)
+            + "`!سباق` أسئلة سريعة" + chr(10)
+            + "`!غميضة` 50 مربع" + chr(10)
+            + "`!xo` اكس او"
+        )
+        emb.add_field(name="🎯 فردية (فورية)", value=solo, inline=True)
+        emb.add_field(name="👥 جماعية (لوبي)", value=group, inline=True)
+        emb.add_field(
+            name="📌 مساعدة",
+            value="`!توب-العاب` · `/games` رومات · الداشبورد للأوقات",
+            inline=False,
+        )
+        emb.set_footer(text="الرتب والأوقات من الداشبورد")
+        await ctx.reply(embed=emb, mention_author=False)
 
 
 async def setup(bot: commands.Bot):
