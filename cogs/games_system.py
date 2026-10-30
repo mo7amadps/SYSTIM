@@ -508,6 +508,28 @@ async def _timeout(guild_id: int, key: str, default: int = 30) -> int:
         return default
 
 
+async def _player_limits(
+    guild_id: int, game_key: str, default_min: int = 2, default_max: int = 100
+) -> tuple[int, int]:
+    """أقلم/أقصى لاعبين من الداشبورد لكل لعبة."""
+    cfg = await _cfg(guild_id)
+    mn_map = cfg.get("min_players") or {}
+    mx_map = cfg.get("max_players") or {}
+    try:
+        mn = int(mn_map.get(game_key, default_min))
+    except Exception:
+        mn = default_min
+    try:
+        mx = int(mx_map.get(game_key, default_max))
+    except Exception:
+        mx = default_max
+    mn = max(1, min(1000, mn))
+    mx = max(mn, min(1000, mx))
+    if game_key == "ghmida":
+        mx = max(mn, min(30, mx))
+    return mn, mx
+
+
 async def _can_start(member: discord.Member, game_key: str) -> bool:
     """رتب مسموحة + أي رتبة أعلى منها بالهرمية تشتغل."""
     if member.guild_permissions.administrator or member.guild_permissions.manage_guild:
