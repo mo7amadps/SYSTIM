@@ -800,25 +800,64 @@ class RoulettePickView(discord.ui.View):
     """قوائم اختيار (20 لاعب لكل قائمة) + رقم الدخول + طرد عشوائي."""
 
     PER_MENU = 20
-    MENUS_PER_PAGE = 4  # صف للقوائم + صف للأزرار (حد ديسكورد 5 صفوف)
+    MENUS_PER_PAGE = 4
 
     def __init__(self, cog: "GamesSystem", channel_id: int, chooser_id: int, page: int = 0):
         super().__init__(timeout=None)
         self.cog = cog
         self.channel_id = channel_id
-        self.chooser_id = chooser_id
-        self.page = page
+        self.chooser_id = int(chooser_id)
+        self.page = int(page or 0)
         self._build()
+
+    def _players_items(self, st: dict) -> list[tuple[int, str]]:
+        """يرجع [(user_id, name), ...] بشكل آمن مهما كان شكل التخزين."""
+        raw = st.get("players") or {}
+        out: list[tuple[int, str]] = []
+        if isinstance(raw, dict):
+            for k, v in raw.items():
+                try:
+                    uid = int(k)
+                except Exception:
+                    continue
+                name = v if isinstance(v, str) else str(v)
+                out.append((uid, name))
+        elif isinstance(raw, (list, tuple, set)):
+            for x in raw:
+                try:
+                    if isinstance(x, (list, tuple)) and len(x) >= 1:
+                        uid = int(x[0])
+                        name = str(x[1]) if len(x) > 1 else str(uid)
+                    else:
+                        uid = int(x)
+                        name = str(uid)
+                    out.append((uid, name))
+                except Exception:
+                    continue
+        return out
 
     def _ordered_targets(self, st: dict) -> list[tuple[int, int, str]]:
         """(رقم_الدخول, user_id, الاسم) بدون المختار."""
         numbers = st.get("join_numbers") or {}
-        rows = []
-        for i, (uid, name) in enumerate(st.get("players") or {}.items(), 1):
+        if not isinstance(numbers, dict):
+            numbers = {}
+        rows: list[tuple[int, int, str]] = []
+        for i, (uid, name) in enumerate(self._players_items(st), 1):
             if uid == self.chooser_id:
                 continue
-            num = int(numbers.get(str(uid), numbers.get(uid, i)))
-            rows.append((num, uid, name))
+            num_raw = numbers.get(str(uid), numbers.get(uid, numbers.get(int(uid), i) if False else i))
+            # numbers قد تكون str(uid)->int
+            if str(uid) in numbers:
+                num_raw = numbers[str(uid)]
+            elif uid in numbers:
+                num_raw = numbers[uid]
+            else:
+                num_raw = i
+            try:
+                num = int(num_raw)
+            except Exception:
+                num = i
+            rows.append((num, uid, name or str(uid)))
         rows.sort(key=lambda x: x[0])
         return rows
 
@@ -834,13 +873,16 @@ class RoulettePickView(discord.ui.View):
         start = self.page * per_page
         chunk = targets[start : start + per_page]
 
-        # قوائم منسدلة — كل واحدة حتى 20
         for m in range(self.MENUS_PER_PAGE):
             part = chunk[m * self.PER_MENU : (m + 1) * self.PER_MENU]
             if not part:
                 break
             options = []
-            for num, uid, name in part:
+            for item in part:
+                try:
+                    num, uid, name = item[0], item[1], item[2]
+                except Exception:
+                    continue
                 label = f"{num} | {name}"
                 if len(label) > 100:
                     label = label[:97] + "..."
@@ -851,8 +893,10 @@ class RoulettePickView(discord.ui.View):
                         description=f"رقم الدخول {num}",
                     )
                 )
+            if not options:
+                continue
             sel = discord.ui.Select(
-                placeholder=f"اختر لاعب للطرد · قائمة {m + 1} (صفحة {self.page + 1}/{pages})",
+                placeholder=f"اختر لاعب للطرد · {m + 1} (ص {self.page + 1}/{pages})",
                 options=options,
                 min_values=1,
                 max_values=1,
@@ -875,11 +919,8 @@ class RoulettePickView(discord.ui.View):
             sel.callback = _on_select
             self.add_item(sel)
 
-        # صف الأزرار
-        btn_row = min(4, self.MENUS_PER_PAGE)  # آخر صف متاح
-        # إذا في قوائم على صف 0-3، الأزرار على صف 4
-        btn_row = 4
-
+        btn_row = min(4, self.MENUS_PER_PAGE if chunk else 0)
+        # أزرار تنقل
         if pages > 1:
             prev = discord.ui.Button(
                 label="◀ السابق",
@@ -930,7 +971,8 @@ class RoulettePickView(discord.ui.View):
             if not cur or cur.get("phase") != "play":
                 await interaction.response.send_message("اللعبة خلصت.", ephemeral=True)
                 return
-            pool = [uid for uid in cur.get("players") or {} if uid != self.chooser_id]
+            items = self._players_items(cur)
+            pool = [uid for uid, _ in items if uid != self.chooser_id]
             if not pool:
                 await interaction.response.send_message("ما في أحد للطرد.", ephemeral=True)
                 return
@@ -956,6 +998,7 @@ class RoulettePickView(discord.ui.View):
 
         withdraw.callback = _wd
         self.add_item(withdraw)
+
 
 
 class MafiaJoinView(discord.ui.View):
