@@ -10,6 +10,7 @@ import random
 import re
 import time
 from typing import Optional
+from pathlib import Path
 
 import discord
 from discord import app_commands
@@ -24,6 +25,32 @@ from cogs.games_data import (
 from cogs.games_replica_words import word_in_category
 
 SECTION = "games"
+
+def _roulette_image_path() -> Path | None:
+    """صورة الروليت المخصصة (assets/roulette.jpg)."""
+    candidates = [
+        Path(__file__).resolve().parent.parent / "assets" / "roulette.jpg",
+        Path("assets/roulette.jpg"),
+        Path("/app/assets/roulette.jpg"),
+    ]
+    for c in candidates:
+        try:
+            if c.is_file():
+                return c
+        except Exception:
+            continue
+    return None
+
+
+def _roulette_file() -> discord.File | None:
+    path = _roulette_image_path()
+    if not path:
+        return None
+    try:
+        return discord.File(path, filename="roulette.jpg")
+    except Exception:
+        return None
+
 logger = logging.getLogger(__name__)
 
 # ───────────── بيانات ─────────────
@@ -733,13 +760,11 @@ class RouletteJoinView(discord.ui.View):
                 if not st or st.get("type") != "roulette" or st.get("phase") != "join":
                     await interaction.response.send_message("ما في لوبي.", ephemeral=True)
                     return
-                host_ok = interaction.user.id == st.get("host_id")
-                admin_ok = isinstance(interaction.user, discord.Member) and (
-                    interaction.user.guild_permissions.administrator
-                    or interaction.user.guild_permissions.manage_guild
-                )
-                if not host_ok and not admin_ok:
-                    await interaction.response.send_message("بس المضيف أو الإدارة.", ephemeral=True)
+                if interaction.user.id != st.get("host_id"):
+                    await interaction.response.send_message(
+                        "بس اللي فتح الروليت يقدر يضغط بدء.",
+                        ephemeral=True,
+                    )
                     return
                 n = len(st.get("players") or {})
                 mn = int(st.get("min_players") or 2)
@@ -2326,11 +2351,15 @@ class GamesSystem(commands.Cog):
         try:
             if ctx.guild and ctx.guild.icon:
                 emb.set_thumbnail(url=ctx.guild.icon.url)
-                emb.set_image(url=ctx.guild.icon.url)
         except Exception:
             pass
+        emb.set_image(url="attachment://roulette.jpg")
         view = RouletteJoinView(self, ctx.channel.id, show_start=(lobby_mode == "button"))
-        msg = await ctx.send(embed=emb, view=view)
+        file = _roulette_file()
+        if file:
+            msg = await ctx.send(embed=emb, view=view, file=file)
+        else:
+            msg = await ctx.send(embed=emb, view=view)
         st = {
             "type": "roulette",
             "phase": "join",
@@ -2374,20 +2403,34 @@ class GamesSystem(commands.Cog):
             left = max(0, int(st.get("lobby_ends", 0) - time.monotonic())) if st.get("lobby_ends") else 0
             emb.set_author(name=f"⏰ اللوبي: {left}ث متبقية")
         emb.set_footer(text=f"({n}/{mx}) · دور الطرد: {turn_t}ث")
+        emb.set_image(url="attachment://roulette.jpg")
         try:
             g = ch.guild
             if g and g.icon:
                 emb.set_thumbnail(url=g.icon.url)
-                emb.set_image(url=g.icon.url)
         except Exception:
             pass
+        file = _roulette_file()
         try:
-            await msg.edit(
-                embed=emb,
-                view=RouletteJoinView(self, st["channel_id"], show_start=(mode == "button")),
-            )
+            if file:
+                await msg.edit(
+                    embed=emb,
+                    attachments=[file],
+                    view=RouletteJoinView(self, st["channel_id"], show_start=(mode == "button")),
+                )
+            else:
+                await msg.edit(
+                    embed=emb,
+                    view=RouletteJoinView(self, st["channel_id"], show_start=(mode == "button")),
+                )
         except Exception:
-            pass
+            try:
+                await msg.edit(
+                    embed=emb,
+                    view=RouletteJoinView(self, st["channel_id"], show_start=(mode == "button")),
+                )
+            except Exception:
+                pass
 
     async def _roulette_countdown(self, channel_id: int):
         while True:
@@ -2496,9 +2539,9 @@ class GamesSystem(commands.Cog):
             g = channel.guild
             if g and g.icon:
                 emb.set_thumbnail(url=g.icon.url)
-                emb.set_image(url=g.icon.url)
         except Exception:
             pass
+        emb.set_image(url="attachment://roulette.jpg")
         emb.set_footer(text=f"اضغط اسم اللاعب · أو طرد عشوائي")
         try:
             view = RoulettePickView(self, channel.id, chooser, 0)
@@ -2508,11 +2551,15 @@ class GamesSystem(commands.Cog):
             await self._clear(channel.id)
             return
         try:
-            msg = await channel.send(
-                content=f"⚡ | دور الطرد\n<@{chooser}> لديك **{timeout}** ثانية لاختيار لاعب لطرده:",
+            file = _roulette_file()
+            kwargs = dict(
+                content=f"⚡ | دور الطرد{chr(10)}<@{chooser}> لديك **{timeout}** ثانية لاختيار لاعب لطرده:",
                 embed=emb,
                 view=view,
             )
+            if file:
+                kwargs["file"] = file
+            msg = await channel.send(**kwargs)
         except Exception as e:
             logger.exception("roulette turn send failed")
             await channel.send(f"❌ ما قدرت أرسل دور الطرد: `{e}`")

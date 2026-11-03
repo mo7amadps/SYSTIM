@@ -247,7 +247,7 @@ async def run_broadcast(
         client = discord.Client(intents=discord.Intents.none())
         try:
             try:
-                await client.login(token)
+                await asyncio.wait_for(client.login(token), timeout=20)
             except Exception:
                 async with counters_lock:
                     failed += len(bucket)
@@ -260,15 +260,23 @@ async def run_broadcast(
                     stopped = True
                     break
                 try:
-                    user = await client.fetch_user(member_id)
-                    await user.send(f"**{message}\n<@{member_id}>**")
+                    user = await asyncio.wait_for(client.fetch_user(member_id), timeout=15)
+                    body = f"**{message}{chr(10)}<@{member_id}>**"
+                    await asyncio.wait_for(user.send(body), timeout=20)
                     await record_result(True)
                 except Exception:
                     await record_result(False)
                 if not stop_event.is_set():
                     await asyncio.sleep(SEND_DELAY_SECONDS)
         finally:
-            await client.close()
+            try:
+                await asyncio.wait_for(client.close(), timeout=15)
+            except Exception:
+                try:
+                    if getattr(client, "http", None) is not None:
+                        await client.http.close()
+                except Exception:
+                    pass
         return stop_event.is_set()
 
     results = await asyncio.gather(
@@ -529,28 +537,36 @@ class BroadcastSystem(commands.Cog):
         """يتحقق من التوكن بدون تسجيله أو إظهار قيمته في أي رسالة أو Log."""
         client = discord.Client(intents=discord.Intents.none())
         try:
-            await client.login(token)
+            await asyncio.wait_for(client.login(token), timeout=15)
             if client.user is None:
                 return None, "missing_user"
             return client.user, None
         except discord.LoginFailure:
             return None, "invalid_token"
         except Exception:
-            # لا نسجل نص الاستثناء لأن بعض المكتبات قد تضع بيانات حساسة داخله.
             return None, "temporary_error"
         finally:
-            await client.close()
+            try:
+                await asyncio.wait_for(client.close(), timeout=10)
+            except Exception:
+                try:
+                    if getattr(client, "http", None) is not None:
+                        await client.http.close()
+                except Exception:
+                    pass
 
-    async def _validate_stored_tokens(self, guild_id: int):
+    async def _validate_stored_tokens(self, guild_id: int, soft: bool = False):
         """
-        يفحص كل التوكنات قبل الحملة.
-        التوكن غير الصالح يتعطل، أما الخطأ المؤقت فيبقى بحالة error ولا يُستخدم.
+        يفحص التوكنات قبل الحملة.
+        soft=True: يستخدم التوكنات ذات status=valid مباشرة بدون login جديد
+        (عشان تقدر تسوي برود بعد برود بسرعة بدون تعليق).
         """
         config = await self._config(guild_id)
         records = _token_records(config.get("tokens", []))
         valid_tokens = []
         disabled_count = 0
         temporary_count = 0
+        changed = False
 
         for record in records:
             checked_at = _now_iso()
@@ -563,9 +579,16 @@ class BroadcastSystem(commands.Cog):
                     last_error=_safe_validation_error("decrypt_failed"),
                 )
                 disabled_count += 1
+                changed = True
+                continue
+
+            # مسار سريع: توكن معروف كصالح → استخدمه بدون login
+            if soft and (record.get("status") or "") == "valid":
+                valid_tokens.append(token)
                 continue
 
             bot_user, reason = await self._validate_plain_token(token)
+            changed = True
             if bot_user is not None:
                 record.update(
                     name=str(bot_user),
@@ -575,6 +598,8 @@ class BroadcastSystem(commands.Cog):
                     last_error=None,
                 )
                 valid_tokens.append(token)
+                # فاصل بسيط بين فحوصات التوكنات لتقليل rate limit
+                await asyncio.sleep(0.35)
                 continue
 
             record.update(
@@ -586,22 +611,31 @@ class BroadcastSystem(commands.Cog):
                 disabled_count += 1
             else:
                 temporary_count += 1
+            await asyncio.sleep(0.35)
 
-        # هذا يحول التوكنات القديمة تلقائياً إلى سجلات مرتبة بدون كشفها.
-        await Storage.update_guild(guild_id, TOKEN_SECTION, {"tokens": records})
+        if changed:
+            await Storage.update_guild(guild_id, TOKEN_SECTION, {"tokens": records})
         return valid_tokens, disabled_count, temporary_count
 
     async def _prepare_broadcast(self, guild: discord.Guild, audience: str):
         """يفحص الحملة ويجهز قائمة الأعضاء قبل إنشاء الـTask."""
-        if guild.id in self._active_broadcasts:
-            return None, None, "في برودكاست شغال حالياً بهذا السيرفر."
+        # نظّف مهمة عالقة إذا التاسك خلص أو مات
+        job = self._active_broadcasts.get(guild.id)
+        if job:
+            task = job.get("task")
+            if task is None or task.done():
+                self._active_broadcasts.pop(guild.id, None)
+            else:
+                return None, None, "في برودكاست شغال حالياً بهذا السيرفر. استخدم إيقاف أولاً."
 
         config = await self._config(guild.id)
         if not config.get("tokens"):
             return None, None, "لم يتم اضافة أي بوت برودكاست."
 
+        # لا نفحص كل التوكنات من جديد كل مرة (يسبب تعليق بعد برود كبير)
+        # نستخدم الصالح المخزّن، ونفحص فقط اللي حالته مش valid أو قديم
         valid_tokens, disabled_count, temporary_count = (
-            await self._validate_stored_tokens(guild.id)
+            await self._validate_stored_tokens(guild.id, soft=True)
         )
         if not valid_tokens:
             return (
@@ -610,7 +644,11 @@ class BroadcastSystem(commands.Cog):
                 "ما في أي توكن صالح حالياً. أضف بوت جديد أو افحص إعدادات Secrets.",
             )
 
-        await guild.chunk(cache=True)
+        try:
+            await asyncio.wait_for(guild.chunk(cache=True), timeout=45)
+        except Exception:
+            # نكمّل بالأعضاء الموجودين بالكاش
+            pass
         members = [member for member in guild.members if not member.bot]
         if audience == "online":
             members = [member for member in members if _is_online(member)]
@@ -639,8 +677,27 @@ class BroadcastSystem(commands.Cog):
     async def stop_broadcast(self, guild_id: int) -> bool:
         job = self._active_broadcasts.get(guild_id)
         if not job:
+            # حتى لو ما في بالذاكرة، صفّر حالة الحملة المخزنة
+            try:
+                await Storage.update_guild(
+                    guild_id, TOKEN_SECTION, {"campaign": {"status": "stopped"}}
+                )
+            except Exception:
+                pass
             return False
         job["stop_event"].set()
+        task = job.get("task")
+        if task is not None and not task.done():
+            # نعطي مهلة قصيرة ثم نلغي وننظف عشان تقدر تبدأ برود جديد بسرعة
+            try:
+                await asyncio.wait_for(asyncio.shield(task), timeout=3)
+            except Exception:
+                task.cancel()
+                try:
+                    await task
+                except Exception:
+                    pass
+        self._active_broadcasts.pop(guild_id, None)
         return True
 
     async def _launch_broadcast(
@@ -654,8 +711,12 @@ class BroadcastSystem(commands.Cog):
         initial_done: int = 0,
         initial_failed: int = 0,
     ) -> bool:
-        if guild.id in self._active_broadcasts:
-            return False
+        job = self._active_broadcasts.get(guild.id)
+        if job:
+            task = job.get("task")
+            if task is not None and not task.done():
+                return False
+            self._active_broadcasts.pop(guild.id, None)
 
         stop_event = asyncio.Event()
         self._active_broadcasts[guild.id] = {
@@ -1358,6 +1419,36 @@ class BroadcastSystem(commands.Cog):
                 )
             except Exception:
                 pass
+
+
+    @app_commands.command(
+        name="clear-broadcast-lock",
+        description="إلغاء قفل البرود العالق عشان تقدر تبدأ حملة جديدة فوراً",
+    )
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(administrator=True)
+    async def clear_broadcast_lock(self, interaction: discord.Interaction):
+        gid = interaction.guild.id
+        job = self._active_broadcasts.pop(gid, None)
+        if job:
+            try:
+                job["stop_event"].set()
+            except Exception:
+                pass
+            task = job.get("task")
+            if task is not None and not task.done():
+                task.cancel()
+        try:
+            await Storage.update_guild(
+                gid, TOKEN_SECTION, {"campaign": {"status": "stopped"}}
+            )
+        except Exception:
+            pass
+        await interaction.response.send_message(
+            "✅ تم فك قفل البرود. تقدر تبدأ حملة جديدة الآن.",
+            ephemeral=True,
+        )
+
 
 
 async def setup(bot: commands.Bot):
