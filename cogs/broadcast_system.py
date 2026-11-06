@@ -177,6 +177,28 @@ def _can_manage_broadcast_whitelist(member: discord.Member) -> bool:
     return False
 
 
+def _member_has_whitelist_role(member: discord.Member, config: dict) -> bool:
+    rid = config.get("whitelist_role_id")
+    if not rid:
+        return False
+    try:
+        rid = int(rid)
+    except Exception:
+        return False
+    return any(role.id == rid for role in member.roles)
+
+
+def _can_manage_broadcast_bots(member: discord.Member, config: dict | None = None) -> bool:
+    """إضافة/إزالة بوتات البرود: أعلى رتبة بالسيرفر أو رتبة البرود المسموحة."""
+    if not isinstance(member, discord.Member):
+        return False
+    if _can_manage_broadcast_whitelist(member):
+        return True
+    if config and _member_has_whitelist_role(member, config):
+        return True
+    return False
+
+
 def _is_online(member: discord.Member) -> bool:
     return (
         member.status in {
@@ -292,7 +314,13 @@ class BroadcastPanelView(discord.ui.View):
         self.cog = cog
 
     async def interaction_check(self, interaction: discord.Interaction) -> bool:
-        """التحقق من صلاحية المستخدم عند الضغط على لوحة قديمة أو عامة."""
+        """إرسال برود أو إدارة التوكنات (أعلى رتبة / رتبة البرود)."""
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message("داخل السيرفر فقط.", ephemeral=True)
+            return False
+        config = await self.cog._config(interaction.guild.id)
+        if _can_manage_broadcast_bots(interaction.user, config):
+            return True
         return await self.cog._require_broadcast_access(interaction)
 
     @discord.ui.button(
@@ -878,7 +906,7 @@ class BroadcastSystem(commands.Cog):
             pass
 
     async def show_add_token_modal(self, interaction: discord.Interaction):
-        if not await self._require_admin(interaction):
+        if not await self._require_manage_bots(interaction):
             return
         await interaction.response.send_modal(AddTokenModal(self))
 
@@ -935,8 +963,27 @@ class BroadcastSystem(commands.Cog):
         """اسم توافق داخلي قديم؛ كل عمليات البرودكاست تستخدم الفحص الموحد."""
         return await self._require_broadcast_access(interaction)
 
+    async def _require_manage_bots(self, interaction: discord.Interaction) -> bool:
+        """إضافة/إزالة توكنات البرود: أعلى رتبة أو رتبة whitelist البرود."""
+        if not interaction.guild or not isinstance(interaction.user, discord.Member):
+            msg = "هذا الأمر داخل السيرفر فقط."
+            if interaction.response.is_done():
+                await interaction.followup.send(msg, ephemeral=True)
+            else:
+                await interaction.response.send_message(msg, ephemeral=True)
+            return False
+        config = await self._config(interaction.guild.id)
+        if _can_manage_broadcast_bots(interaction.user, config):
+            return True
+        msg = "ما عندك صلاحية إدارة بوتات البرود." + chr(10) + "المسموح: **أعلى رتبة بالسيرفر** أو **رتبة البرود** المعتمدة."
+        if interaction.response.is_done():
+            await interaction.followup.send(msg, ephemeral=True)
+        else:
+            await interaction.response.send_message(msg, ephemeral=True)
+        return False
+
     async def save_token(self, interaction: discord.Interaction, token: str):
-        if not await self._require_admin(interaction):
+        if not await self._require_manage_bots(interaction):
             return
         await interaction.response.defer(ephemeral=True)
         config = await self._config(interaction.guild.id)
@@ -1343,10 +1390,7 @@ class BroadcastSystem(commands.Cog):
     @app_commands.guild_only()
     @app_commands.describe(bot_id="المعرّف الظاهر في أمر /broadcast-bots")
     async def remove_token(self, interaction: discord.Interaction, bot_id: str):
-        if interaction.guild.owner_id != interaction.user.id:
-            await interaction.response.send_message(
-                "هذا الأمر مخصص لمالك السيرفر فقط.", ephemeral=True
-            )
+        if not await self._require_manage_bots(interaction):
             return
         config = await self._config(interaction.guild.id)
         records = _token_records(config.get("tokens", []))
@@ -1371,10 +1415,7 @@ class BroadcastSystem(commands.Cog):
     )
     @app_commands.guild_only()
     async def remove_all_tokens(self, interaction: discord.Interaction):
-        if interaction.guild.owner_id != interaction.user.id:
-            await interaction.response.send_message(
-                "هذا الأمر مخصص لمالك السيرفر فقط.", ephemeral=True
-            )
+        if not await self._require_manage_bots(interaction):
             return
         await Storage.update_guild(interaction.guild.id, TOKEN_SECTION, {"tokens": []})
         await interaction.response.send_message(

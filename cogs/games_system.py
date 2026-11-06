@@ -716,8 +716,12 @@ class LobbyView(discord.ui.View):
         if not st or st.get("phase") != "lobby" or st.get("type") != self.game_type:
             await interaction.response.send_message("ما في لوبي مفتوح.", ephemeral=True)
             return
+        players = st.get("players") or {}
+        if interaction.user.id in players:
+            await interaction.response.send_message("أنت منضم بالفعل ✅", ephemeral=True)
+            return
         max_p = int(st.get("max_players") or 300)
-        if interaction.user.id not in st["players"] and len(st["players"]) >= max_p:
+        if len(players) >= max_p:
             await interaction.response.send_message(f"اللعبة ممتلئة (حد {max_p}).", ephemeral=True)
             return
         st["players"][interaction.user.id] = interaction.user.display_name
@@ -791,8 +795,12 @@ class RouletteJoinView(discord.ui.View):
             await interaction.response.send_message("ما في روليت مفتوحة هنا.", ephemeral=True)
             return
         uid = interaction.user.id
+        players = st.get("players") or {}
+        if uid in players:
+            await interaction.response.send_message("أنت منضم بالفعل ✅", ephemeral=True)
+            return
         max_p = int(st.get("max_players") or 1000)
-        if uid not in st["players"] and len(st["players"]) >= max_p:
+        if len(players) >= max_p:
             await interaction.response.send_message(f"ممتلئة (حد {max_p}).", ephemeral=True)
             return
         st["players"][uid] = interaction.user.display_name
