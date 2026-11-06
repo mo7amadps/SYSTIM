@@ -150,7 +150,7 @@ class ChannelUtils(commands.Cog):
         embed.add_field(
             name="ℹ️ طريقة الشغل",
             value=(
-                "اكتب `مسح @الشخص 20` عشان تمسح آخر 20 رسالة لهاد الشخص بهاد الروم (بس يلي عمرها أقل من يوم).\n"
+                "اكتب `مسح @الشخص 20` أو `مسح ID_الشخص 20` عشان تمسح آخر رسائل لهاد الشخص (أقل من يوم).\n"
                 f"أي شخص رتبته بنفس موقع {protected_role.mention} أو أعلى منها بالسيرفر، رسائله محمية ما تنمسح "
                 "حتى لو ما معه هاي الرتبة بالضبط."
             ),
@@ -256,16 +256,108 @@ class ChannelUtils(commands.Cog):
     @commands.command(name="مسح")
     @commands.guild_only()
     @commands.cooldown(1, 5, commands.BucketType.user)
-    async def clear_cmd(self, ctx: commands.Context, target: Optional[discord.Member] = None, amount: int = None):
-        if target is not None:
-            await self._clear_v2(ctx, target, amount)
+    async def clear_cmd(self, ctx: commands.Context, *args: str):
+        """
+        مسح 20                 → مسح عام
+        مسح @شخص 20            → مسح رسائل شخص (منشن)
+        مسح 123456789012345678 20 → مسح برقم الـ ID بدون منشن
+        """
+        target_member: Optional[discord.Member] = None
+        amount: Optional[int] = None
+
+        if not args:
+            await ctx.reply(
+                "استخدم الأمر هيك:\n"
+                "• `مسح 20` — مسح آخر رسائل بالروم\n"
+                "• `مسح @الشخص 20` — مسح رسائل شخص (منشن)\n"
+                "• `مسح 123456789012345678 20` — مسح برقم الـ ID بدون منشن"
+            )
+            return
+
+        async def _resolve_member(token: str) -> Optional[discord.Member]:
+            token = token.strip()
+            # <@id> or <@!id>
+            if token.startswith("<@") and token.endswith(">"):
+                raw = token[2:-1].lstrip("!")
+                if raw.isdigit():
+                    token = raw
+            if token.isdigit() and len(token) >= 15:
+                uid = int(token)
+                member = ctx.guild.get_member(uid)
+                if member is None:
+                    try:
+                        member = await ctx.guild.fetch_member(uid)
+                    except (discord.NotFound, discord.HTTPException):
+                        return None
+                return member
+            # اسم / منشن نصي
+            try:
+                return await commands.MemberConverter().convert(ctx, token)
+            except Exception:
+                return None
+
+        def _as_amount(token: str) -> Optional[int]:
+            try:
+                n = int(token.strip())
+                # snowflake IDs are huge; amounts are small
+                if 1 <= n <= 5000:
+                    return n
+            except Exception:
+                pass
+            return None
+
+        if len(args) == 1:
+            only = args[0]
+            am = _as_amount(only)
+            if am is not None and not (only.isdigit() and len(only) >= 15):
+                amount = am
+            else:
+                target_member = await _resolve_member(only)
+                if target_member is None:
+                    await ctx.reply(
+                        "❌ ما قدرت أحدد الشخص. استخدم منشن أو ID صحيح، أو `مسح 20` للمسح العام."
+                    )
+                    return
+                amount = None  # لازم العدد
+        else:
+            # arg0 = target أو amount ، arg1 = amount أو target
+            a0, a1 = args[0], args[1]
+            m0 = await _resolve_member(a0)
+            m1 = await _resolve_member(a1)
+            am0 = _as_amount(a0)
+            am1 = _as_amount(a1)
+
+            if m0 is not None and am1 is not None:
+                target_member, amount = m0, am1
+            elif am0 is not None and m1 is not None:
+                target_member, amount = m1, am0
+            elif m0 is not None and m1 is None and am1 is None:
+                # مسح @شخص بدون عدد
+                target_member, amount = m0, None
+            elif am0 is not None and m0 is None and len(a0) < 15:
+                # مسح عام: مسح 20
+                amount = am0
+            else:
+                # آخر محاولة: أول token ID/منشن
+                target_member = m0 or await _resolve_member(a0)
+                amount = am1 if am1 is not None else am0
+                if target_member is None and amount is None:
+                    await ctx.reply(
+                        "❌ صيغة غير مفهومة. مثال: `مسح @شخص 20` أو `مسح 123456789012345678 20`"
+                    )
+                    return
+
+        if target_member is not None:
+            await self._clear_v2(ctx, target_member, amount)
             return
 
         if not await self._check_permission(ctx, "clear", "set-up-clear"):
             return
         if amount is None:
-            await ctx.reply("استخدم الأمر هيك: `مسح 20` (أقصى شي 100 رسالة بالمرة، حد ديسكورد)\n"
-                             "أو `مسح @الشخص 20` لمسح رسائل شخص محدد بس.")
+            await ctx.reply(
+                "استخدم الأمر هيك: `مسح 20` (أقصى شي 100 رسالة بالمرة)\n"
+                "أو `مسح @الشخص 20` / `مسح ID 20` لمسح رسائل شخص."
+            )
             return
         if amount <= 0:
             await ctx.reply("❌ لازم تكتب رقم أكبر من صفر.")
@@ -278,7 +370,6 @@ class ChannelUtils(commands.Cog):
             return
 
         try:
-            # +1 حتى نحذف رسالة الأمر نفسها كمان
             deleted = await ctx.channel.purge(limit=amount + 1)
         except discord.Forbidden:
             await ctx.reply("❌ ما قدرت أمسح، تأكد من صلاحيات البوت.")
@@ -291,7 +382,7 @@ class ChannelUtils(commands.Cog):
             "العملية": "🧹 مسح رسائل",
             "بواسطة": ctx.author.mention,
             "القناة": ctx.channel.mention,
-            "العدد": len(deleted) - 1,
+            "العدد": max(0, len(deleted) - 1),
         })
 
     async def _clear_v2(self, ctx: commands.Context, target: discord.Member, amount: int):
@@ -299,11 +390,16 @@ class ChannelUtils(commands.Cog):
             return
 
         conf = await Storage.get_guild(ctx.guild.id)
-        cfg = conf["clear_v2"]
+        cfg = conf.get("clear_v2") or {}
         max_amount = cfg.get("max_amount") or 50
 
         if amount is None:
-            await ctx.reply(f"استخدم الأمر هيك: `مسح @الشخص 20` (أقصى شي {max_amount} رسالة بالمرة)")
+            await ctx.reply(
+                f"استخدم الأمر هيك:\n"
+                f"• `مسح @الشخص 20`\n"
+                f"• `مسح {target.id} 20` (ID بدون منشن)\n"
+                f"(أقصى شي {max_amount} رسالة بالمرة)"
+            )
             return
         if amount <= 0:
             await ctx.reply("❌ لازم تكتب رقم أكبر من صفر.")
@@ -314,9 +410,10 @@ class ChannelUtils(commands.Cog):
 
         protected_role_id = cfg.get("protected_role_id")
         protected_role = ctx.guild.get_role(protected_role_id) if protected_role_id else None
-        if protected_role and any(r.position >= protected_role.position for r in target.roles):
-            await ctx.reply("❌ ما فيك تمسح رسائل هاد الشخص، رتبته محمية.")
-            return
+        if protected_role and isinstance(target, discord.Member):
+            if any(r.position >= protected_role.position for r in target.roles):
+                await ctx.reply("❌ ما فيك تمسح رسائل هاد الشخص، رتبته محمية.")
+                return
 
         missing = bot_missing_permissions(ctx.guild, "manage_messages")
         if missing:
@@ -343,7 +440,7 @@ class ChannelUtils(commands.Cog):
             return
 
         if not collected:
-            await ctx.send(f"ما لقيت رسائل لـ{target.mention} بآخر يوم بهاد الروم.", delete_after=6)
+            await ctx.send(f"ما لقيت رسائل لـ{getattr(target, 'mention', target.id)} بآخر يوم بهاد الروم.", delete_after=6)
             return
 
         try:
@@ -355,7 +452,7 @@ class ChannelUtils(commands.Cog):
             await ctx.send("❌ صار خطأ أثناء المسح، جرب مرة ثانية.", delete_after=8)
             return
 
-        await ctx.send(f"🧹 تم مسح {len(collected)} رسالة لـ{target.mention}.", delete_after=6)
+        await ctx.send(f"🧹 تم مسح {len(collected)} رسالة لـ{getattr(target, 'mention', target.id)}.", delete_after=6)
         await self.send_log(ctx.guild, "clear_v2", {
             "العملية": "🧹 مسح رسائل شخص محدد",
             "بواسطة": ctx.author.mention,
@@ -369,7 +466,7 @@ class ChannelUtils(commands.Cog):
         if isinstance(error, commands.CommandOnCooldown):
             await ctx.reply(f"⏳ استنى {error.retry_after:.0f} ثانية.")
         elif isinstance(error, commands.BadArgument):
-            await ctx.reply("❌ تأكد من كتابة الأمر صح: `مسح 20` أو `مسح @الشخص 20`")
+            await ctx.reply("❌ تأكد من كتابة الأمر صح: `مسح 20` أو `مسح @الشخص 20` أو `مسح ID 20`")
 
 
 async def setup(bot: commands.Bot):

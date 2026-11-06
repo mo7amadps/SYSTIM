@@ -1017,26 +1017,39 @@ async def guild_detail(request: Request, guild_id: str):
     def row(label, value):
         return f"<div class='kv'><span>{label}</span><b>{value}</b></div>"
 
-    # قائمة جانبية
-    tabs = [
-        ("overview", "نظرة عامة"),
-        ("logs", "لوقات"),
-        ("security", "حماية"),
-        ("filter", "فلتر"),
-        ("voice", "فويس"),
-        ("xp", "XP"),
-        ("autorole", "أوتو رول"),
-        ("tickets", "تذاكر مفتوحة"),
-        ("types", "أنواع تذاكر"),
-        ("wheel", "عجلة"),
-        ("commands", "أوامر"),
-        ("games", "ألعاب"),
+    # قائمة جانبية — مجمّعة حسب الوظيفة
+    nav_groups = [
+        ("عام", [
+            ("overview", "نظرة عامة"),
+            ("logs", "لوقات"),
+            ("security", "حماية"),
+        ]),
+        ("أعضاء", [
+            ("filter", "فلتر"),
+            ("autorole", "أوتو رول"),
+            ("xp", "XP"),
+        ]),
+        ("رومات وتذاكر", [
+            ("voice", "فويس"),
+            ("tickets", "تذاكر مفتوحة"),
+            ("types", "أنواع تذاكر"),
+        ]),
+        ("ترفيه", [
+            ("wheel", "عجلة"),
+            ("games", "ألعاب"),
+        ]),
+        ("إعداد", [
+            ("commands", "أوامر"),
+        ]),
     ]
-    side = []
-    for key, label in tabs:
-        cls = "active" if tab == key else ""
-        side.append(f'<a class="{cls}" href="/guild/{guild_id}?tab={key}">{label}</a>')
-    side_nav = '<aside class="side-nav">' + "".join(side) + "</aside>"
+    side_bits = []
+    for group_title, items in nav_groups:
+        side_bits.append(f'<div class="side-group"><div class="side-group-title">{group_title}</div>')
+        for key, label in items:
+            cls = "active" if tab == key else ""
+            side_bits.append(f'<a class="{cls}" href="/guild/{guild_id}?tab={key}">{label}</a>')
+        side_bits.append("</div>")
+    side_nav = '<aside class="side-nav">' + "".join(side_bits) + "</aside>"
 
     if tab == "logs":
         main_content = (
@@ -1250,36 +1263,62 @@ async def guild_detail(request: Request, guild_id: str):
         </section>
         """ + ROLE_FILTER_SCRIPT
 
+    elif tab in system_tabs:
+        main_content = systems_html or (
+            '<section class="card warn"><p>لا محتوى لهذا القسم.</p></section>'
+        )
 
     else:
+        ar = conf.get("auto_role") or conf.get("autorole") or {}
         main_content = f"""
-        <section class="grid-2">
-          <div class="card">
-            <h2>التذاكر</h2>
-            {row("أنواع معدّة", len(tickets))}
-            {row("مفتوحة الآن", len(open_t))}
-          </div>
-          <div class="card">
-            <h2>الفويس</h2>
+        <section class="card-head-row"><h2>نظرة عامة</h2>
+        <p class="muted">اضغط البطاقة للدخول للقسم المناسب</p></section>
+        <section class="grid-2 overview-grid">
+          <a class="card overview-link" href="/guild/{guild_id}?tab=voice">
+            <h2>🔊 الفويس</h2>
             {row("روم الزرار", av.get("trigger_channel_id") or "—")}
             {row("رومات نشطة", len(av.get("rooms") or {}))}
-          </div>
-          <div class="card">
-            <h2>XP</h2>
-            {row("الحالة", "مفعّل" if xp.get("enabled", True) else "متوقف")}
-          </div>
-          <div class="card">
-            <h2>الفلتر</h2>
+            {row("حد لكل شخص", av.get("max_rooms_per_user") or 1)}
+          </a>
+          <a class="card overview-link" href="/guild/{guild_id}?tab=tickets">
+            <h2>🎫 التذاكر</h2>
+            {row("أنواع معدّة", len(tickets))}
+            {row("مفتوحة الآن", len(open_t))}
+          </a>
+          <a class="card overview-link" href="/guild/{guild_id}?tab=filter">
+            <h2>🛡️ الفلتر</h2>
             {row("كلمات", len(wf.get("words") or []))}
             {row("مفعّل", "نعم" if wf.get("enabled", True) else "لا")}
-          </div>
-          <div class="card">
-            <h2>الحماية</h2>
+          </a>
+          <a class="card overview-link" href="/guild/{guild_id}?tab=xp">
+            <h2>⭐ XP</h2>
+            {row("الحالة", "مفعّل" if xp.get("enabled", True) else "متوقف")}
+          </a>
+          <a class="card overview-link" href="/guild/{guild_id}?tab=security">
+            <h2>🔒 الحماية</h2>
             {row("اللوكداون", "مفعّل" if (conf.get("security") or {}).get("lockdown_active") else "متوقف")}
-            {row("الأقسام", "10")}
-          </div>
+          </a>
+          <a class="card overview-link" href="/guild/{guild_id}?tab=games">
+            <h2>🎮 الألعاب</h2>
+            {row("رومات مسموحة", len((conf.get("games") or {}).get("allowed_channels") or []))}
+          </a>
+          <a class="card overview-link" href="/guild/{guild_id}?tab=autorole">
+            <h2>🎭 أوتو رول</h2>
+            {row("مفعّل", "نعم" if ar.get("enabled") else "—")}
+          </a>
+          <a class="card overview-link" href="/guild/{guild_id}?tab=wheel">
+            <h2>🎡 العجلة</h2>
+            {row("نقاط مسجّلة", len(((conf.get("wheel") or {}).get("points") or {})))}
+          </a>
+          <a class="card overview-link" href="/guild/{guild_id}?tab=commands">
+            <h2>⚙️ الأوامر</h2>
+            {row("إدارة", "رتب + كلمات")}
+          </a>
+          <a class="card overview-link" href="/guild/{guild_id}?tab=logs">
+            <h2>📋 اللوقات</h2>
+            {row("إعداد", "روم لكل نظام")}
+          </a>
         </section>
-        <p class="muted" style="margin-top:16px">اختَر قسم من القائمة: لوقات · فلتر · فويس · أوامر…</p>
         """
 
     body = f"""
@@ -1502,6 +1541,8 @@ async def auto_voice_update(
     category_id: str = Form("0"),
     name_template: str = Form(""),
     user_limit: str = Form("0"),
+    max_rooms_per_user: str = Form("1"),
+    log_channel_id: str = Form("0"),
 ):
     redir = _require_auth(request)
     if redir:
@@ -1517,6 +1558,11 @@ async def auto_voice_update(
         limit = int(str(user_limit).strip() or "0")
     except Exception:
         limit = 0
+    try:
+        max_rooms = int(str(max_rooms_per_user).strip() or "1")
+    except Exception:
+        max_rooms = 1
+    max_rooms = max(1, min(5, max_rooms))
     tpl = (name_template or "").strip() or "🔊 روم {user}"
     if storage_ref:
         await storage_ref.update_guild(
@@ -1526,10 +1572,15 @@ async def auto_voice_update(
                 "trigger_channel_id": _id(trigger_channel_id),
                 "category_id": _id(category_id),
                 "name_template": tpl,
-                "user_limit": max(0, limit),
+                "user_limit": max(0, min(99, limit)),
+                "max_rooms_per_user": max_rooms,
+                "log_channel_id": _id(log_channel_id),
             },
         )
-    return RedirectResponse(f"/guild/{guild_id}?ok=تم حفظ Auto Voice", status_code=303)
+    return RedirectResponse(
+        f"/guild/{guild_id}?tab=voice&ok=تم حفظ إعدادات الفويس",
+        status_code=303,
+    )
 
 
 @app.post("/guild/{guild_id}/xp-settings")

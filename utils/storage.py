@@ -244,6 +244,7 @@ def _default_guild() -> dict:
             "name_template": "🔊 روم {user}",
             "user_limit": 0,               # 0 = بدون حد
             "rooms": {},   # {channel_id: {"owner_id": ..., "created_at": epoch}}
+            "max_rooms_per_user": 1,
         },
         "rar": {
             "allowed_role_ids": [],

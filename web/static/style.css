@@ -381,3 +381,88 @@ body { line-height: 1.6; letter-spacing: 0.01em; }
 .game-body{padding:12px 14px 16px}
 .role-details{margin-top:6px}
 .role-summary{cursor:pointer;padding:8px 10px;background:rgba(0,0,0,0.25);border-radius:8px;font-size:0.85rem;color:#a8b3cf}
+
+
+/* —— Auto Voice dashboard —— */
+.voice-layout { display: grid; gap: 16px; }
+.voice-main { max-width: 820px; }
+.voice-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+  margin-bottom: 18px;
+}
+@media (max-width: 640px) {
+  .voice-stats { grid-template-columns: 1fr; }
+}
+.voice-stat {
+  background: rgba(0,0,0,0.22);
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  padding: 14px 12px;
+  text-align: center;
+}
+.voice-stat b {
+  display: block;
+  font-size: 1.45rem;
+  color: #c5d0ff;
+  margin-bottom: 4px;
+}
+.voice-stat span {
+  font-size: 12px;
+  color: var(--muted);
+}
+.fields-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px 18px;
+}
+@media (max-width: 720px) {
+  .fields-grid { grid-template-columns: 1fr; }
+}
+.highlight-field {
+  background: rgba(123,147,245,0.08);
+  border: 1px solid rgba(123,147,245,0.22);
+  border-radius: 14px;
+  padding: 12px;
+}
+.field input[type="number"] {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: #121826;
+  color: var(--text);
+  font-size: 14px;
+}
+.field input[type="number"]:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgba(108,140,255,.2);
+}
+.btn-wide { width: 100%; margin-top: 12px; justify-content: center; }
+.card-head-row h2 { margin: 0 0 4px; }
+.card-head-row .muted { margin: 0 0 12px; }
+
+
+/* Side nav groups + overview links */
+.side-group { margin-bottom: 12px; }
+.side-group-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: rgba(168,179,207,.55);
+  padding: 8px 14px 4px;
+  font-weight: 700;
+}
+a.overview-link {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+  transition: transform .15s ease, border-color .15s ease;
+}
+a.overview-link:hover {
+  transform: translateY(-3px);
+  border-color: rgba(108,140,255,.45);
+}
+a.overview-link h2 { margin-top: 0; }

@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from discord import app_commands
 from discord.ext import commands
@@ -429,6 +430,20 @@ class AutoVoiceSystem(commands.Cog):
     async def cog_load(self):
         # نسجل اللوحة كـ persistent view حتى تضل الأزرار شغالة حتى لو البوت عمل ريستارت
         self.bot.add_view(RoomControlView())
+        # تنظيف يتيم بعد ما البوت يصير جاهز
+        asyncio.create_task(self._startup_orphan_cleanup())
+
+    async def _startup_orphan_cleanup(self):
+        await self.bot.wait_until_ready()
+        await asyncio.sleep(5)
+        for guild in list(self.bot.guilds):
+            try:
+                conf = await Storage.get_guild(guild.id)
+                av = conf.get("auto_voice") or {}
+                if av.get("rooms"):
+                    await self._cleanup_orphan_rooms(guild, av)
+            except Exception:
+                continue
 
 
     # ---------------- /set-up-auto-voice ----------------
@@ -440,6 +455,7 @@ class AutoVoiceSystem(commands.Cog):
         log_channel="قناة اللوق (اختياري)",
         name_template="شكل اسم الروم - استخدم {user} حتى ينحط مكانها اسم الشخص",
         user_limit="أقصى عدد أشخاص بالروم افتراضياً (0 = بدون حد)",
+        max_rooms_per_user="كم روم مؤقت لكل شخص (1–5، افتراضي 1)",
     )
     @app_commands.guild_only()
     @app_commands.checks.has_permissions(administrator=True)
@@ -451,6 +467,7 @@ class AutoVoiceSystem(commands.Cog):
         log_channel: discord.TextChannel = None,
         name_template: str = "🔊 روم {user}",
         user_limit: app_commands.Range[int, 0, 99] = 0,
+        max_rooms_per_user: app_commands.Range[int, 1, 5] = 1,
     ):
         if "{user}" not in name_template:
             name_template = name_template.strip() + " {user}"
@@ -461,6 +478,7 @@ class AutoVoiceSystem(commands.Cog):
             "log_channel_id": log_channel.id if log_channel else None,
             "name_template": name_template,
             "user_limit": user_limit,
+            "max_rooms_per_user": int(max_rooms_per_user),
         })
 
         embed = branded_embed(title="✅ تم إعداد الرومات الصوتية التلقائية", color=discord.Color.green())
@@ -486,8 +504,80 @@ class AutoVoiceSystem(commands.Cog):
 
     # ---------------- إنشاء / حذف الرومات ----------------
 
+    async def _cleanup_orphan_rooms(self, guild: discord.Guild, av: dict) -> dict:
+        """يشيل من التخزين أي روم انمسح يدوياً أو ما عاد موجود."""
+        rooms = dict(av.get("rooms") or {})
+        if not rooms:
+            return av
+        changed = False
+        for cid in list(rooms.keys()):
+            try:
+                ch_id = int(cid)
+            except Exception:
+                rooms.pop(cid, None)
+                changed = True
+                continue
+            ch = guild.get_channel(ch_id)
+            if ch is None or not isinstance(ch, discord.VoiceChannel):
+                rooms.pop(cid, None)
+                changed = True
+                try:
+                    await Storage.remove_auto_voice_room(guild.id, ch_id)
+                except Exception:
+                    pass
+        if changed:
+            av = dict(av)
+            av["rooms"] = rooms
+        return av
+
+    async def _find_owned_room(
+        self, guild: discord.Guild, member: discord.Member, av: dict
+    ) -> discord.VoiceChannel | None:
+        """أول روم مؤقت يملكه العضو وما زال موجود."""
+        for cid, meta in list((av.get("rooms") or {}).items()):
+            try:
+                if int(meta.get("owner_id") or 0) != member.id:
+                    continue
+                ch = guild.get_channel(int(cid))
+            except Exception:
+                continue
+            if isinstance(ch, discord.VoiceChannel):
+                return ch
+        return None
+
     async def _create_room(self, member: discord.Member, av: dict):
         guild = member.guild
+        # تنظيف يتيم قبل أي إنشاء
+        av = await self._cleanup_orphan_rooms(guild, av)
+
+        # حد الرومات لكل شخص (افتراضي 1)
+        try:
+            max_rooms = int(av.get("max_rooms_per_user") or 1)
+        except Exception:
+            max_rooms = 1
+        max_rooms = max(1, min(5, max_rooms))
+
+        owned = []
+        for cid, meta in list((av.get("rooms") or {}).items()):
+            try:
+                if int(meta.get("owner_id") or 0) != member.id:
+                    continue
+                ch = guild.get_channel(int(cid))
+            except Exception:
+                continue
+            if isinstance(ch, discord.VoiceChannel):
+                owned.append(ch)
+
+        if len(owned) >= max_rooms:
+            # رجّعه لرومه الحالي بدل فتح روم جديد
+            target = owned[0]
+            try:
+                if not member.voice or member.voice.channel_id != target.id:
+                    await member.move_to(target, reason="عندك روم مؤقت مسبقاً")
+            except Exception:
+                pass
+            return
+
         category = guild.get_channel(av["category_id"])
         if not isinstance(category, discord.CategoryChannel):
             return
@@ -577,8 +667,12 @@ class AutoVoiceSystem(commands.Cog):
     async def on_voice_state_update(
         self, member: discord.Member, before: discord.VoiceState, after: discord.VoiceState
     ):
+        if member.bot:
+            return
         conf = await Storage.get_guild(member.guild.id)
-        av = conf["auto_voice"]
+        av = conf.get("auto_voice") or {}
+        # تنظيف دوري خفيف للرومات اليتيمة
+        av = await self._cleanup_orphan_rooms(member.guild, av)
 
         # دخل على روم الزرار -> ننشئله روم خاص
         trigger_id = av.get("trigger_channel_id")
@@ -587,7 +681,10 @@ class AutoVoiceSystem(commands.Cog):
 
         # طلع من روم مؤقت -> لو فضي، نحذفه
         if before.channel and before.channel != after.channel:
-            await self._maybe_delete_room(before.channel, av)
+            # أعد قراءة av بعد إنشاء محتمل
+            conf2 = await Storage.get_guild(member.guild.id)
+            av2 = conf2.get("auto_voice") or av
+            await self._maybe_delete_room(before.channel, av2)
 
     # ---------------- /room-voice ----------------
 

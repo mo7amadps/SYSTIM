@@ -158,11 +158,17 @@ def build_systems_html(guild, guild_id: str, conf: dict, role_picker, channel_pi
     xp_enabled = xp.get("enabled", True)
     template = av.get("name_template") or "🔊 روم {user}"
     limit = av.get("user_limit") if av.get("user_limit") is not None else 0
+    try:
+        max_rooms = int(av.get("max_rooms_per_user") or 1)
+    except Exception:
+        max_rooms = 1
+    max_rooms = max(1, min(5, max_rooms))
+    log_ch_id = av.get("log_channel_id")
 
     sections = {}
 
     sections["filter"] = (
-        f'<section class="card-head-row"><h2>فلتر الكلمات</h2></section>'
+        f'<section class="card-head-row"><h2>🛡️ فلتر الكلمات</h2></section>'
         f'<section class="grid-2"><div class="card manage-card">'
         f'<h3>فلتر الكلمات</h3>'
         f'<p class="muted">الحالة: <b>{"مفعّل" if wf.get("enabled", True) else "متوقف"}</b>'
@@ -181,23 +187,44 @@ def build_systems_html(guild, guild_id: str, conf: dict, role_picker, channel_pi
         f'</div></section>'
     )
 
+    log_opts = _text_channel_options(guild, log_ch_id)
     sections["voice"] = (
-        f'<section class="card-head-row"><h2>Auto Voice</h2></section>'
-        f'<section class="grid-2"><div class="card manage-card">'
-        f'<h3>Auto Voice</h3><p class="muted">رومات نشطة: <b>{len(av.get("rooms") or {})}</b></p>'
+        f'<section class="card-head-row"><h2>🔊 الرومات الصوتية المؤقتة</h2>'
+        f'<p class="muted">دخول روم الزرار → روم خاص · يُحذف عند الفراغ</p></section>'
+        f'<section class="voice-layout">'
+        f'<div class="card manage-card voice-main">'
+        f'<div class="voice-stats">'
+        f'<div class="voice-stat"><b>{len(av.get("rooms") or {})}</b><span>رومات نشطة</span></div>'
+        f'<div class="voice-stat"><b>{_esc(max_rooms)}</b><span>حد لكل شخص</span></div>'
+        f'<div class="voice-stat"><b>{_esc(limit if limit else "∞")}</b><span>حد الأعضاء</span></div>'
+        f'</div>'
         f'<form method="post" action="/guild/{guild_id}/auto-voice" class="form manage-form">'
-        f'<div class="field"><label>روم الزرار</label><select name="trigger_channel_id">{"".join(voice_opts)}</select></div>'
-        f'<div class="field"><label>الكاتيغوري</label><select name="category_id">{"".join(cat_opts)}</select></div>'
-        f'<div class="field"><label>قالب الاسم</label>'
-        f'<input type="text" name="name_template" value="{_esc(template)}" placeholder="روم {{user}}" autocomplete="off"/></div>'
-        f'<div class="field"><label>حد الأعضاء (0 = بدون)</label>'
-        f'<input type="text" name="user_limit" value="{_esc(limit)}" autocomplete="off"/></div>'
-        f'<button type="submit" class="btn primary">حفظ الفويس</button></form>'
+        f'<div class="fields-grid">'
+        f'<div class="field"><label>🚪 روم الزرار (الدخول)</label>'
+        f'<select name="trigger_channel_id">{"".join(voice_opts)}</select>'
+        f'<p class="muted small">لما يدخل العضو هنا ينخلق له روم</p></div>'
+        f'<div class="field"><label>📁 الكاتيغوري</label>'
+        f'<select name="category_id">{"".join(cat_opts)}</select>'
+        f'<p class="muted small">مكان إنشاء الرومات المؤقتة</p></div>'
+        f'<div class="field"><label>✏️ قالب الاسم</label>'
+        f'<input type="text" name="name_template" value="{_esc(template)}" '
+        f'placeholder="🔊 روم {{user}}" autocomplete="off"/>'
+        f'<p class="muted small">استخدم {{user}} لاسم العضو</p></div>'
+        f'<div class="field"><label>👥 حد الأعضاء داخل الروم</label>'
+        f'<input type="number" name="user_limit" min="0" max="99" value="{_esc(limit)}" autocomplete="off"/>'
+        f'<p class="muted small">0 = بدون حد</p></div>'
+        f'<div class="field highlight-field"><label>🏠 رومات لكل شخص</label>'
+        f'<input type="number" name="max_rooms_per_user" min="1" max="5" value="{_esc(max_rooms)}" autocomplete="off"/>'
+        f'<p class="muted small">افتراضي 1 — إذا عنده روم يرجع لنفس الروم</p></div>'
+        f'<div class="field"><label>📝 روم اللوق (اختياري)</label>'
+        f'<select name="log_channel_id">{log_opts}</select></div>'
+        f'</div>'
+        f'<button type="submit" class="btn primary btn-wide">💾 حفظ إعدادات الفويس</button></form>'
         f'</div></section>'
     )
 
     sections["xp"] = (
-        f'<section class="card-head-row"><h2>نظام XP</h2></section>'
+        f'<section class="card-head-row"><h2>⭐ نظام XP</h2></section>'
         f'<section class="grid-2"><div class="card manage-card"><h3>نظام XP</h3>'
         f'<form method="post" action="/guild/{guild_id}/xp-settings" class="form manage-form">'
         f'<div class="toggle-row"><label><input type="checkbox" name="enabled" value="1" {"checked" if xp_enabled else ""}/> تفعيل XP</label></div>'
@@ -214,8 +241,8 @@ def build_systems_html(guild, guild_id: str, conf: dict, role_picker, channel_pi
     )
 
     sections["autorole"] = (
-        f'<section class="card-head-row"><h2>Auto Role</h2></section>'
-        f'<section class="grid-2"><div class="card manage-card"><h3>Auto Role</h3>'
+        f'<section class="card-head-row"><h2>🎭 أوتو رول</h2></section>'
+        f'<section class="grid-2"><div class="card manage-card"><h3>رتب تلقائية عند دخول العضو</h3>'
         f'<p class="muted">رتب عند دخول عضو</p>'
         f'<div class="cmd-wrap" style="margin:10px 0;pointer-events:auto">{ar_roles_html}</div>'
         f'<form method="post" action="/guild/{guild_id}/autorole-save" class="form manage-form">'
@@ -225,18 +252,18 @@ def build_systems_html(guild, guild_id: str, conf: dict, role_picker, channel_pi
     )
 
     sections["tickets"] = (
-        f'<section class="card-head-row"><h2>التذاكر المفتوحة</h2></section>'
+        f'<section class="card-head-row"><h2>🎫 التذاكر المفتوحة</h2></section>'
         f'<section class="card manage-card"><h3>مفتوحة <span class="badge">{len(open_tickets)}</span></h3>'
         f'<p class="muted">إغلاق = force close</p>{tickets_html}</section>'
     )
 
     sections["types"] = (
-        f'<section class="card-head-row"><h2>أنواع التذاكر</h2></section>'
+        f'<section class="card-head-row"><h2>🎫 أنواع التذاكر</h2></section>'
         f'<section class="grid-2">{types_html}</section>'
     )
 
     sections["wheel"] = (
-        f'<section class="card-head-row"><h2>نقاط العجلة</h2></section>'
+        f'<section class="card-head-row"><h2>🎡 نقاط العجلة</h2></section>'
         f'<section class="card manage-card">{pts_html}'
         f'<hr style="border-color:var(--stroke);margin:16px 0"/>'
         f'<form method="post" action="/guild/{guild_id}/wheel-points" class="form manage-form">'
