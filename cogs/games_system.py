@@ -71,13 +71,30 @@ WORDS = [
     "ذهب", "فضة", "ماس", "لؤلؤ", "كنز مدفون", "خريطة قديمة",
 ]
 
-PLAYERS = [
-    "ميسي", "رونالدو", "نيمار", "مبابي", "هالاند", "بنزيما", "صلاح",
-    "محرز", "بونو", "حكيمي", "يوسف النصيري", "أشرف حكيمي", "كريم بنزيما",
-    "زيدان", "رونالدينيو", "خافي", "إينييستا", "كاسياس", "بوفون",
-    "ليفاندوفسكي", "مودريتش", "كروس", "دي بروين", "ستيرلينغ", "سون",
-    "فينيسيوس", "بيدري", "غافي", "يامال", "بellingham".replace("bellingham", "بيلينغهام"),
+# اسم اللاعب + صورة (روابط عامة) + أسماء بديلة مقبولة
+PLAYER_POOL = [
+    {"name": "ميسي", "aliases": ["ليونيل ميسي", "messi", "ليونيل"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/b/b4/Lionel-Messi-Argentina-2022-FIFA-World-Cup_%28cropped%29.jpg/440px-Lionel-Messi-Argentina-2022-FIFA-World-Cup_%28cropped%29.jpg"},
+    {"name": "رونالدو", "aliases": ["كريستيانو", "cristiano", "cr7", "كريستيانو رونالدو"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8c/Cristiano_Ronaldo_2018.jpg/440px-Cristiano_Ronaldo_2018.jpg"},
+    {"name": "نيمار", "aliases": ["neymar", "نيمار جونيور"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/6/65/20180610_FIFA_Friendly_Match_Austria_vs._Brazil_Neymar_850_1705.jpg/440px-20180610_FIFA_Friendly_Match_Austria_vs._Brazil_Neymar_850_1705.jpg"},
+    {"name": "مبابي", "aliases": ["mbappe", "كيلان مبابي", "mbappé"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a8/Kylian_Mbapp%C3%A9_during_a_pre-season_friendly.jpg/440px-Kylian_Mbapp%C3%A9_during_a_pre-season_friendly.jpg"},
+    {"name": "هالاند", "aliases": ["haaland", "إيرلينج", "ارلينج هالاند"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/07/Erling_Haaland_2023_%28cropped%29.jpg/440px-Erling_Haaland_2023_%28cropped%29.jpg"},
+    {"name": "صلاح", "aliases": ["محمد صلاح", "salah", "mo salah"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Mohamed_Salah_2018.jpg/440px-Mohamed_Salah_2018.jpg"},
+    {"name": "محرز", "aliases": ["رياض محرز", "mahrez"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2c/Riyad_Mahrez_2018.jpg/440px-Riyad_Mahrez_2018.jpg"},
+    {"name": "حكيمي", "aliases": ["اشرف حكيمي", "أشرف حكيمي", "hakimi"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/2e/Achraf_Hakimi_2022.jpg/440px-Achraf_Hakimi_2022.jpg"},
+    {"name": "بنزيما", "aliases": ["كريم بنزيما", "benzema"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e2/Karim_Benzema_2018_%28cropped%29.jpg/440px-Karim_Benzema_2018_%28cropped%29.jpg"},
+    {"name": "زيدان", "aliases": ["زين الدين زيدان", "zidane"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f3/Zinedine_Zidane_by_Augustas_Didzgalvis.jpg/440px-Zinedine_Zidane_by_Augustas_Didzgalvis.jpg"},
+    {"name": "مودريتش", "aliases": ["لوكا مودريتش", "modric"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e1/2018-06-16_Luka_Modri%C4%87.jpg/440px-2018-06-16_Luka_Modri%C4%87.jpg"},
+    {"name": "كروس", "aliases": ["توني كروس", "kroos"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0b/20180602_FIFA_Friendly_Match_Austria_vs._Germany_Toni_Kroos_850_0695.jpg/440px-20180602_FIFA_Friendly_Match_Austria_vs._Germany_Toni_Kroos_850_0695.jpg"},
+    {"name": "فينيسيوس", "aliases": ["فينيسيوس جونيور", "vinicius", "vini"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/f/f5/Vin%C3%ADcius_J%C3%BAnior_2021.jpg/440px-Vin%C3%ADcius_J%C3%BAnior_2021.jpg"},
+    {"name": "يامال", "aliases": ["لامين يامال", "yamal"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/9e/Lamine_Yamal_2024.jpg/440px-Lamine_Yamal_2024.jpg"},
+    {"name": "بيلينغهام", "aliases": ["jude bellingham", "بيلينجهام", "bellingham"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/8/8e/Jude_Bellingham_2021.jpg/440px-Jude_Bellingham_2021.jpg"},
+    {"name": "ليفاندوفسكي", "aliases": ["lewandowski", "روبرت ليفاندوفسكي"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/2/26/Robert_Lewandowski_2018.jpg/440px-Robert_Lewandowski_2018.jpg"},
+    {"name": "دي بروين", "aliases": ["kevin de bruyne", "ديبروين"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/7/7c/Kevin_De_Bruyne_2018.jpg/440px-Kevin_De_Bruyne_2018.jpg"},
+    {"name": "بوفون", "aliases": ["buffon", "جانلويجي بوفون"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/0/0a/Gianluigi_Buffon_2018.jpg/440px-Gianluigi_Buffon_2018.jpg"},
+    {"name": "إينييستا", "aliases": ["iniesta", "اندريس انيستا"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/9/96/Andr%C3%A9s_Iniesta_2018.jpg/440px-Andr%C3%A9s_Iniesta_2018.jpg"},
+    {"name": "رونالدينيو", "aliases": ["ronaldinho", "رونالدينيو"], "image": "https://upload.wikimedia.org/wikipedia/commons/thumb/e/e6/Ronaldinho_in_2019.jpg/440px-Ronaldinho_in_2019.jpg"},
 ]
+PLAYERS = [p["name"] for p in PLAYER_POOL]
 
 QUESTIONS = [
     # 400 سؤال كت — نقاش مفتوح (أي جواب يُحسب لأول مجيب)
@@ -640,7 +657,50 @@ async def _add_point(guild_id: int, user_id: int, amount: int = 1) -> int:
 
 
 def _game_embed(title: str, desc: str = "", color: discord.Color | None = None) -> discord.Embed:
-    return branded_embed(title=title, description=desc, color=color or discord.Color.blurple())
+    """إمبد ألعاب بدون فوتر discord.gg/row."""
+    return discord.Embed(
+        title=title,
+        description=desc,
+        color=color or discord.Color.blurple(),
+    )
+
+
+def _pretty_letters(word: str, gap: str = "   ") -> str:
+    """حروف متباعدة واضحة: ح   ل   و"""
+    chars = [c for c in (word or "") if not c.isspace()]
+    return gap.join(chars)
+
+
+def _scramble_word(word: str) -> str:
+    chars = [c for c in word if not c.isspace()]
+    if len(chars) < 2:
+        return "".join(chars)
+    for _ in range(12):
+        random.shuffle(chars)
+        if "".join(chars) != word.replace(" ", ""):
+            break
+    return "".join(chars)
+
+
+def _anti_copy_number(num: str) -> str:
+    """أرقام بصيغة يصعب نسخها كرقم عادي (مسافات عرض صفر + عرض كامل بصري)."""
+    # صفر-عرض بين كل رقم + تحويل لأشكال مشابهة للعرض
+    trans = str.maketrans("0123456789", "𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗")  # mathematical bold digits
+    styled = num.translate(trans)
+    # zero-width space between digits so plain copy is awkward
+    return "​".join(styled)
+
+
+def _harf_mask(word: str) -> tuple[str, str]:
+    """يرجع (المعروض بمسافات وشرطة، الكلمة الأصلية)."""
+    word = word.replace(" ", "")
+    if len(word) < 2:
+        word = word + "ا"
+    idx = random.randrange(len(word))
+    chars = list(word)
+    chars[idx] = "_"
+    shown = "  ".join(chars)
+    return shown, word
 
 
 # ───────────── Views مشتركة ─────────────
@@ -654,9 +714,7 @@ class PlayAgainView(discord.ui.View):
 
     @discord.ui.button(label="العب مرة أخرى", style=discord.ButtonStyle.primary, emoji="🔄")
     async def again(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if interaction.user.id != self.starter_id:
-            await interaction.response.send_message("فقط من بدأ الجولة السابقة.", ephemeral=True)
-            return
+        # أي أحد يقدر يبدأ جولة جديدة من الزر
         await interaction.response.defer()
         cmd = {
             "kat": self.cog.start_kat,
@@ -1322,6 +1380,60 @@ class GamesSystem(commands.Cog):
         return st
 
 
+    async def _restart_solo(self, channel, user, game_type: str):
+        """إعادة لعبة فردية من زر العب مرة أخرى."""
+        if not channel or not user:
+            return
+        try:
+            if not await _channel_allowed(channel.guild.id, channel.id):
+                await channel.send("الألعاب مقفولة بهالروم.")
+                return
+        except Exception:
+            pass
+        if isinstance(user, discord.Member) and not await _can_start(user, game_type):
+            return
+        cur = _ACTIVE.get(channel.id)
+        if cur:
+            await self._clear(channel.id)
+        st = {
+            "type": game_type,
+            "phase": "play",
+            "players": {user.id: getattr(user, "display_name", str(user.id))},
+            "host_id": user.id,
+            "channel_id": channel.id,
+            "min_players": 1,
+            "max_players": 300,
+        }
+        _ACTIVE[channel.id] = st
+        runners = {
+            "kat": self._run_kat,
+            "asra": self._run_asra,
+            "player": self._run_player,
+            "tafkik": self._run_tafkik,
+            "tajmee": self._run_tajmee,
+            "arqam": self._run_arqam,
+            "harf": self._run_harf,
+        }
+        runner = runners.get(game_type)
+        if runner:
+            await runner(channel, st)
+
+    async def start_kat(self, channel, user):
+        await self._restart_solo(channel, user, "kat")
+
+    async def start_asra(self, channel, user):
+        await self._restart_solo(channel, user, "asra")
+
+    async def start_player(self, channel, user):
+        await self._restart_solo(channel, user, "player")
+
+    async def start_tafkik(self, channel, user):
+        await self._restart_solo(channel, user, "tafkik")
+
+    async def start_tajmee(self, channel, user):
+        await self._restart_solo(channel, user, "tajmee")
+
+
     async def _clear(self, channel_id: int):
         _ACTIVE.pop(channel_id, None)
 
@@ -1535,29 +1647,62 @@ class GamesSystem(commands.Cog):
 
     # ===== كت =====
     @commands.command(name="كت")
+    @commands.cooldown(1, 2.0, commands.BucketType.user)
     async def cmd_kat(self, ctx: commands.Context):
-        st = await self._start_solo(ctx, "kat", "❓ كت")
-        if not st:
+        if not await _channel_allowed(ctx.guild.id, ctx.channel.id):
+            await ctx.reply("الألعاب مقفولة بهالروم. الأدمن يضبط الرومات بـ `/games`.")
             return
+        if not await _can_start(ctx.author, "kat"):
+            return
+        cur = _ACTIVE.get(ctx.channel.id)
+        if cur and cur.get("type") != "kat":
+            await ctx.reply("في لعبة شغّالة هنا.")
+            return
+        if cur and cur.get("type") == "kat":
+            await self._clear(ctx.channel.id)
+
+        st = {
+            "type": "kat",
+            "phase": "play",
+            "players": {ctx.author.id: ctx.author.display_name},
+            "host_id": ctx.author.id,
+            "channel_id": ctx.channel.id,
+            "min_players": 1,
+            "max_players": 300,
+            "gen": 0,
+        }
+        _ACTIVE[ctx.channel.id] = st
         await self._run_kat(ctx.channel, st)
+
+    @cmd_kat.error
+    async def cmd_kat_error(self, ctx: commands.Context, error):
+        if isinstance(error, commands.CommandOnCooldown):
+            try:
+                await ctx.message.add_reaction("⏳")
+            except Exception:
+                pass
+            return
+        raise error
 
     async def _run_kat(self, channel, st):
         q, answers = random.choice(QUESTIONS)
         timeout = await _timeout(channel.guild.id, "kat", 30)
-        emb = _game_embed("❓ كت", f"**{q}**\n\nأول واحد يجاوب · {timeout}ث")
+        emb = _game_embed("❓ كت", f"**{q}**")
         await channel.send(embed=emb)
         st.update({
             "answer": answers if answers == ["*"] else [_norm(a) for a in answers],
             "start": time.monotonic(),
             "host": st["host_id"],
-            "allowed": None,  # الكل بالروم
+            "allowed": None,
             "type": "kat",
+            "gen": int(st.get("gen") or 0) + 1,
         })
+        gen = st["gen"]
         try:
             await asyncio.wait_for(self._wait_answer(channel.id), timeout=timeout)
         except asyncio.TimeoutError:
-            if channel.id in _ACTIVE and _ACTIVE[channel.id].get("type") == "kat":
-                await channel.send("⏰ انتهى الوقت — ما في فائز.")
+            cur = _ACTIVE.get(channel.id)
+            if cur and cur.get("type") == "kat" and cur.get("gen") == gen:
                 await self._clear(channel.id)
 
     # ===== اسرع =====
@@ -1573,8 +1718,9 @@ class GamesSystem(commands.Cog):
         timeout = await _timeout(channel.guild.id, "asra", 20)
         emb = _game_embed(
             "⚡ لعبة أسرع",
-            f"اكتب الكلمات التالية قبل انتهاء الوقت\n\n# {word}\n\n"
-            f"الداخلون فقط · {timeout}ث",
+            f"اكتب الكلمة التالية قبل انتهاء الوقت\n\n"
+            f"# {word}\n\n"
+            f"⏱️ الوقت **{timeout}s**",
         )
         await channel.send(embed=emb)
         st.update({
@@ -1662,11 +1808,15 @@ class GamesSystem(commands.Cog):
     async def _run_tajmee(self, channel, st):
         word = random.choice([w for w in WORDS if " " not in w and 3 <= len(w) <= 10] or WORDS)
         word = word.replace(" ", "")
-        letters = list(word)
-        random.shuffle(letters)
-        shown = " ".join(letters)
+        scrambled = _scramble_word(word)
+        shown = _pretty_letters(scrambled, gap="   ")
         timeout = await _timeout(channel.guild.id, "tajmee", 20)
-        emb = _game_embed("🧩 تجميع", f"رتّب الحروف:\n\n# {shown}\n\n{timeout}ث")
+        desc = (
+            "رتّب الحروف — اكتب الكلمة الصحيحة" + chr(10) + chr(10)
+            + f"# {shown}" + chr(10) + chr(10)
+            + f"⏱️ الوقت **{timeout}s**"
+        )
+        emb = _game_embed("🧩 تجميع", desc)
         await channel.send(embed=emb)
         st.update({
             "answer": _norm_spaces(word),
@@ -1675,6 +1825,7 @@ class GamesSystem(commands.Cog):
             "host": st["host_id"],
             "space_insensitive": True,
             "allowed": None,
+            "type": "tajmee",
         })
         try:
             await asyncio.wait_for(self._wait_answer(channel.id), timeout=timeout)
@@ -1872,9 +2023,7 @@ class GamesSystem(commands.Cog):
     # ===== لغز =====
     @commands.command(name="لغز")
     async def cmd_lughz(self, ctx):
-        st = await self._start_solo(ctx, "lughz", "🧩 لغز")
-        if st:
-            await self._run_lughz(ctx.channel, st)
+        await ctx.reply("لعبة **لغز** متوقفة حالياً.")
 
     async def _run_lughz(self, channel, st):
         q, answers = random.choice(RIDDLES)
@@ -1906,8 +2055,15 @@ class GamesSystem(commands.Cog):
     async def _run_arqam(self, channel, st):
         num = str(random.randint(100000, 9999999))
         timeout = await _timeout(channel.guild.id, "arqam", 15)
-        emb = _game_embed("🔢 لعبة أرقام", f"اكتب الأرقام التالية قبل انتهاء الوقت\n\n# {num}\n\nبواسطة <@{st['host_id']}>")
-        emb.set_footer(text=f"{timeout}ث")
+        display = _anti_copy_number(num)
+        host = st["host_id"]
+        desc = (
+            "اكتب الأرقام التالية قبل انتهاء الوقت" + chr(10) + chr(10)
+            + f"# {display}" + chr(10) + chr(10)
+            + f"بواسطة <@{host}>" + chr(10)
+            + f"⏱️ الوقت **{timeout}s**"
+        )
+        emb = _game_embed("🔢 لعبة أرقام", desc)
         await channel.send(embed=emb)
         st.update({
             "answer": num,
@@ -1923,6 +2079,7 @@ class GamesSystem(commands.Cog):
             if channel.id in _ACTIVE and _ACTIVE[channel.id].get("type") == "arqam":
                 await channel.send("⏰ انتهى الوقت.")
                 await self._clear(channel.id)
+
 
     # ===== مفرد =====
     @commands.command(name="مفرد")
@@ -1986,16 +2143,21 @@ class GamesSystem(commands.Cog):
             await self._run_harf(ctx.channel, st)
 
     async def _run_harf(self, channel, st):
-        word = random.choice([w for w in WORDS if " " not in w and 3 <= len(w) <= 8] or ["قلب", "كتاب", "باب"])
-        word = word.replace(" ", "")
-        idx = random.randrange(len(word))
-        shown = word[:idx] + "ـ" + word[idx + 1:]
+        word = random.choice([w for w in WORDS if " " not in w and 3 <= len(w) <= 8] or ["غربة", "كتاب", "مدرسة"])
+        shown, word = _harf_mask(word)
         timeout = await _timeout(channel.guild.id, "harf", 15)
-        emb = _game_embed("🔤 لعبة حرف مفقود", f"اكتشف الحرف المفقود واكتب الكلمة كاملة قبل انتهاء الوقت\n\n# {shown}\n\nبواسطة <@{st['host_id']}>")
-        emb.set_footer(text=f"{timeout}ث")
+        host = st["host_id"]
+        desc = (
+            "اكتشف الحرف المفقود واكتب الكلمة كاملة قبل انتهاء الوقت" + chr(10)
+            + f"بواسطة <@{host}>" + chr(10) + chr(10)
+            + f"# {shown}" + chr(10) + chr(10)
+            + f"⏱️ الوقت **{timeout}s**"
+        )
+        emb = _game_embed("🔤 لعبة حرف", desc)
         await channel.send(embed=emb)
         st.update({
             "answer": _norm(word),
+            "raw": word,
             "start": time.monotonic(),
             "host": st["host_id"],
             "allowed": None,
@@ -2007,6 +2169,7 @@ class GamesSystem(commands.Cog):
             if channel.id in _ACTIVE and _ACTIVE[channel.id].get("type") == "harf":
                 await channel.send(f"⏰ الجواب: **{word}**")
                 await self._clear(channel.id)
+
 
     # ===== XO =====
     @commands.command(name="xo", aliases=["XO", "اكس"])
@@ -2257,9 +2420,7 @@ class GamesSystem(commands.Cog):
     # ===== خمن =====
     @commands.command(name="خمن")
     async def cmd_khammen(self, ctx):
-        st = await self._start_solo(ctx, "khammen", "📍 خمن")
-        if st:
-            await self._run_khammen(ctx.channel, st)
+        await ctx.reply("لعبة **خمن** متوقفة حالياً.")
 
     async def _run_khammen(self, channel, st):
         name, hint = random.choice(GUESS_PLACES)
@@ -2916,13 +3077,24 @@ class GamesSystem(commands.Cog):
         elapsed = time.monotonic() - st.get("start", time.monotonic())
         pts = await _add_point(message.guild.id, message.author.id)
         game = st.get("type", "")
-        emb = _game_embed(
-            "✅ فوز!",
-            f"{message.author.mention} جاوب خلال **{elapsed:.2f}** ثانية\n"
-            f"⭐ نقاطه: **{pts}** (+1)",
-            color=discord.Color.green(),
-        )
-        view = PlayAgainView(self, game if game in ("kat", "asra", "player", "tafkik", "tajmee") else "asra", st.get("host") or message.author.id)
+        winner = message.author
+        if game == "asra":
+            emb = _game_embed(
+                "🏆 فاز!",
+                f"**الفائز:** {winner.mention}\n"
+                f"جاوب خلال **{elapsed:.2f}** ثانية\n"
+                f"⭐ نقاطه: **{pts}** (+1)",
+                color=discord.Color.green(),
+            )
+        else:
+            emb = _game_embed(
+                "✅ فوز!",
+                f"**الفائز:** {winner.mention}\n"
+                f"جاوب خلال **{elapsed:.2f}** ثانية\n"
+                f"⭐ نقاطه: **{pts}** (+1)",
+                color=discord.Color.green(),
+            )
+        view = PlayAgainView(self, game if game in ("kat", "asra", "player", "tafkik", "tajmee", "arqam", "harf") else "asra", message.author.id)
         await message.channel.send(embed=emb, view=view)
         await self._clear(message.channel.id)
 
@@ -2959,7 +3131,12 @@ class GamesSystem(commands.Cog):
                 ans = st.get("answer") or []
                 ok = _norm(content) in ans if isinstance(ans, list) else _norm(content) == ans
             elif st.get("exact"):
-                ok = content.strip() == st.get("answer")
+                # أرقام: اقبل النسخ حتى لو فيها رموز عرض
+                raw = content.strip()
+                raw = re.sub(r"[^0-9٠-٩0-9]", "", raw.translate(str.maketrans("٠١٢٣٤٥٦٧٨٩𝟎𝟏𝟐𝟑𝟒𝟓𝟔𝟕𝟖𝟗", "01234567890123456789")))
+                ok = raw == str(st.get("answer") or "")
+                if not ok:
+                    ok = content.strip() == st.get("answer")
             else:
                 ok = _norm(content) == st.get("answer")
             if ok:
@@ -3194,8 +3371,8 @@ class GamesSystem(commands.Cog):
             + "`!اسرع` اكتب بأسرع وقت" + chr(10)
             + "`!لاعب` خمّن اللاعب" + chr(10)
             + "`!تفكيك` / `!تجميع`" + chr(10)
-            + "`!لغز` · `!ارقام` · `!مفرد` · `!جمع`" + chr(10)
-            + "`!حرف` · `!عكس` · `!خمن`"
+            + "`!ارقام` · `!مفرد` · `!جمع` · `!حرف` · `!عكس`" + chr(10)
+            + "`!لاعب` صورة لاعب"
         )
         group = (
             "`!روليت` طرد بالدور" + chr(10)
