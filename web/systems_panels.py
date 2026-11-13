@@ -41,7 +41,7 @@ def _role_options(guild, selected_id=None) -> str:
     return "".join(opts)
 
 
-def build_systems_html(guild, guild_id: str, conf: dict, role_picker, channel_picker, role_name_fn, only: str | None = None) -> str:
+def build_systems_html(guild, guild_id: str, conf: dict, role_picker, channel_picker, role_name_fn, only: str | None = None, xp_stats: dict | None = None) -> str:
     wf = conf.get("word_filter") or {}
     words = list(wf.get("words") or [])
     words_bits = []
@@ -223,9 +223,48 @@ def build_systems_html(guild, guild_id: str, conf: dict, role_picker, channel_pi
         f'</div></section>'
     )
 
+
+    xs = xp_stats or {}
+    msg_t = int(xs.get("messages_today") or 0)
+    act_t = int(xs.get("active_today") or 0)
+    xp_t = int(xs.get("xp_gained_today") or 0)
+    vxp_t = int(xs.get("voice_xp_gained_today") or 0)
+    total_xp = int(xs.get("total_xp") or 0)
+    total_vxp = int(xs.get("total_voice_xp") or 0)
+    mem_xp = int(xs.get("members_with_xp") or 0)
+    top_rows = ""
+    for i, (uid, uxp, lv) in enumerate(xs.get("top") or [], 1):
+        top_rows += f'<div class="kv"><span>#{i} <code>{_esc(uid)}</code></span><b>Lv {lv} · {uxp:,} XP</b></div>'
+    if not top_rows:
+        top_rows = '<p class="muted">ما في بيانات بعد — التفاعل يبدأ بعد الرفع.</p>'
+    hist_rows = ""
+    for h in reversed(list(xs.get("history") or [])):
+        hist_rows += (
+            f'<div class="kv"><span>{_esc(h.get("day"))}</span>'
+            f'<b>{int(h.get("messages") or 0)} رسالة · {int(h.get("active") or 0)} عضو · {int(h.get("xp") or 0)} XP</b></div>'
+        )
+    if not hist_rows:
+        hist_rows = '<p class="muted">السجل اليومي يظهر من بكرة.</p>'
+    stats_html = (
+        f'<section class="card-head-row"><h2>⭐ نظام XP</h2>'
+        f'<span class="chip on">اليوم {_esc(xs.get("day_key") or "—")}</span></section>'
+        f'<section class="grid-3 xp-stats-grid">'
+        f'<div class="card xp-stat-card"><div class="stat"><b>{act_t:,}</b><span>أعضاء تفاعلوا اليوم</span></div></div>'
+        f'<div class="card xp-stat-card"><div class="stat"><b>{msg_t:,}</b><span>رسائل اليوم</span></div></div>'
+        f'<div class="card xp-stat-card"><div class="stat"><b>{xp_t:,}</b><span>XP مكتسب اليوم (شات)</span></div></div>'
+        f'<div class="card xp-stat-card"><div class="stat"><b>{vxp_t:,}</b><span>XP فويس اليوم</span></div></div>'
+        f'<div class="card xp-stat-card highlight"><div class="stat"><b>{total_xp:,}</b><span>مجموع XP كل الأعضاء</span></div></div>'
+        f'<div class="card xp-stat-card"><div class="stat"><b>{mem_xp:,}</b><span>أعضاء عندهم XP</span></div></div>'
+        f'</section>'
+        f'<section class="grid-2">'
+        f'<div class="card manage-card"><h3>🏆 توب 5</h3>{top_rows}</div>'
+        f'<div class="card manage-card"><h3>📅 آخر الأيام</h3>{hist_rows}</div>'
+        f'</section>'
+    )
+
     sections["xp"] = (
-        f'<section class="card-head-row"><h2>⭐ نظام XP</h2></section>'
-        f'<section class="grid-2"><div class="card manage-card"><h3>نظام XP</h3>'
+        stats_html + (
+        f'<section class="grid-2" style="margin-top:12px"><div class="card manage-card"><h3>⚙️ إعدادات XP</h3>'
         f'<form method="post" action="/guild/{guild_id}/xp-settings" class="form manage-form">'
         f'<div class="toggle-row"><label><input type="checkbox" name="enabled" value="1" {"checked" if xp_enabled else ""}/> تفعيل XP</label></div>'
         f'<div class="field"><label>أقل XP</label><input type="text" name="xp_min" value="{_esc(xp.get("xp_min", 5))}" autocomplete="off"/></div>'
@@ -238,6 +277,7 @@ def build_systems_html(guild, guild_id: str, conf: dict, role_picker, channel_pi
         f'<div class="field"><label>المستوى</label><input type="text" name="level" required autocomplete="off"/></div>'
         f'<div class="field"><label>الرتبة</label>{role_picker(guild, "role_id", multi=False)}</div>'
         f'<button type="submit" class="btn primary">إضافة مكافأة</button></form></div></section>'
+    )
     )
 
     sections["autorole"] = (

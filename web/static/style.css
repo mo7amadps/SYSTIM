@@ -466,3 +466,32 @@ a.overview-link:hover {
   border-color: rgba(108,140,255,.45);
 }
 a.overview-link h2 { margin-top: 0; }
+
+
+/* —— XP Dashboard —— */
+.xp-stats-grid { margin-top: 8px; }
+.xp-stat-card {
+  background: linear-gradient(160deg, rgba(123,147,245,.12), rgba(155,122,237,.06));
+  border: 1px solid rgba(123,147,245,.25);
+  transition: transform .15s ease, border-color .15s;
+}
+.xp-stat-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(123,147,245,.45);
+}
+.xp-stat-card.highlight {
+  background: linear-gradient(160deg, rgba(93,206,163,.14), rgba(123,147,245,.08));
+  border-color: rgba(93,206,163,.35);
+}
+.xp-stat-card .stat b {
+  font-size: 28px;
+  background: linear-gradient(90deg, #c5d0ff, #e0d4ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.xp-stat-card.highlight .stat b {
+  background: linear-gradient(90deg, #8ef0c8, #c5d0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+}

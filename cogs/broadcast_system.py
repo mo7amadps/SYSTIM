@@ -18,7 +18,7 @@ from utils.checks import is_owner
 
 
 SEND_DELAY_SECONDS = 0.2
-PROGRESS_EVERY = 25
+PROGRESS_EVERY = 1  # تحديث العداد بعد كل إرسال
 TOKEN_SECTION = "broadcast"
 logger = logging.getLogger(__name__)
 
@@ -122,20 +122,49 @@ def _safe_validation_error(reason: str) -> str:
 
 
 
-def _guild_presence_counts(guild: discord.Guild) -> tuple[int, int, int]:
-    """إجمالي · أونلاين · أوفلاين (بدون بوتات)."""
-    humans = [m for m in guild.members if not m.bot]
-    total = len(humans)
+async def _guild_presence_counts(guild: discord.Guild) -> tuple[int, int, int]:
+    """إجمالي · أونلاين · أوفلاين — يطابق عدّاد السيرفر قدر الإمكان.
+
+    1) يجرب approximate counts من API ديسكورد (نفس أرقام الواجهة تقريباً)
+    2) وإلا يعد من الكاش بعد chunk (Presence Intent مطلوب للأونلاين الدقيق)
+    """
+    # --- طريقة ديسكورد الرسمية (تقريبية وتشمل البوتات مثل عدّاد السيرفر) ---
+    try:
+        state = getattr(guild, "_state", None)
+        client = getattr(state, "client", None) or getattr(state, "_get_client", lambda: None)()
+        if client is not None and hasattr(client, "fetch_guild"):
+            fetched = await client.fetch_guild(guild.id, with_counts=True)
+            approx_total = getattr(fetched, "approximate_member_count", None)
+            approx_online = getattr(fetched, "approximate_presence_count", None)
+            if approx_total is not None and approx_online is not None:
+                total = int(approx_total)
+                online = int(approx_online)
+                online = max(0, min(online, total))
+                offline = max(0, total - online)
+                return total, online, offline
+    except Exception:
+        pass
+
+    # --- احتياطي: الكاش المحلي ---
+    try:
+        if not guild.chunked:
+            await guild.chunk(cache=True)
+    except Exception:
+        pass
+
+    members = list(guild.members)
+    # نفس منطق عدّاد ديسكورد تقريباً: كل الأعضاء (بما فيهم البوتات)
+    total = len(members)
     online = sum(
         1
-        for m in humans
+        for m in members
         if m.status in {
             discord.Status.online,
             discord.Status.idle,
             discord.Status.dnd,
         }
     )
-    offline = total - online
+    offline = max(0, total - online)
     return total, online, offline
 
 
@@ -223,6 +252,7 @@ async def run_broadcast(
     start_index: int = 0,
     initial_done: int = 0,
     initial_failed: int = 0,
+    send_delay: float = SEND_DELAY_SECONDS,
 ) -> None:
     """يرسل بالتوازي بين التوكنات، وبالتتابع داخل كل توكن."""
     if not tokens:
@@ -289,7 +319,7 @@ async def run_broadcast(
                 except Exception:
                     await record_result(False)
                 if not stop_event.is_set():
-                    await asyncio.sleep(SEND_DELAY_SECONDS)
+                    await asyncio.sleep(max(0.1, min(1.0, float(send_delay))))
         finally:
             try:
                 await asyncio.wait_for(client.close(), timeout=15)
@@ -770,6 +800,7 @@ class BroadcastSystem(commands.Cog):
         )
 
         async def safe_progress(done: int, failed: int):
+            # العداد يتحدث فوراً على الرسالة؛ التخزين كل عدة إرسالات لتقليل الضغط
             campaign_update = {
                 **campaign,
                 "cursor": done + failed,
@@ -778,11 +809,16 @@ class BroadcastSystem(commands.Cog):
                 "status": "running",
             }
             campaign.update(campaign_update)
-            await Storage.update_guild(
-                guild.id,
-                TOKEN_SECTION,
-                {"campaign": campaign_update},
-            )
+            processed = done + failed
+            if processed % 5 == 0 or processed <= 3:
+                try:
+                    await Storage.update_guild(
+                        guild.id,
+                        TOKEN_SECTION,
+                        {"campaign": campaign_update},
+                    )
+                except Exception:
+                    pass
             try:
                 await status_message.edit(
                     embed=_broadcast_embed(
@@ -830,6 +866,12 @@ class BroadcastSystem(commands.Cog):
 
         async def worker():
             try:
+                cfg = await self._config(guild.id)
+                try:
+                    delay = float(cfg.get("send_delay", SEND_DELAY_SECONDS))
+                except Exception:
+                    delay = SEND_DELAY_SECONDS
+                delay = max(0.1, min(1.0, delay))
                 await run_broadcast(
                     tokens,
                     member_ids,
@@ -840,6 +882,7 @@ class BroadcastSystem(commands.Cog):
                     start_index,
                     initial_done,
                     initial_failed,
+                    send_delay=delay,
                 )
             except Exception:
                 logger.exception("Broadcast worker failed for guild %s", guild.id)
@@ -882,7 +925,7 @@ class BroadcastSystem(commands.Cog):
             panel_message = await channel.fetch_message(message_id)
             tokens = _token_records(config.get("tokens", []))
             text = config.get("message") or "لم يتم تحديد رسالة"
-            total, online, offline = _guild_presence_counts(interaction.guild)
+            total, online, offline = await _guild_presence_counts(interaction.guild)
             embed = discord.Embed(
                 title="📡 لوحة البرودكاست",
                 description="يمكنك التحكم في البوت عن طريق الأزرار",
@@ -898,6 +941,12 @@ class BroadcastSystem(commands.Cog):
                 value=f"**```{text[:1000]}```**",
                 inline=False,
             )
+            try:
+                _spd = float(config.get("send_delay", SEND_DELAY_SECONDS))
+            except Exception:
+                _spd = SEND_DELAY_SECONDS
+            _spd = max(0.1, min(1.0, _spd))
+            embed.add_field(name="⚡ السرعة", value=f"**`{_spd}s`**", inline=True)
             embed.add_field(name="👥 الأعضاء", value=f"**`{total}`**", inline=True)
             embed.add_field(name="🟢 أونلاين", value=f"**`{online}`**", inline=True)
             embed.add_field(name="⚫ أوفلاين", value=f"**`{offline}`**", inline=True)
@@ -1209,7 +1258,7 @@ class BroadcastSystem(commands.Cog):
 
             tokens = _token_records(config.get("tokens", []))
             text = (config.get("message") or "لم يتم تحديد رسالة")[:1000]
-            total, online, offline = _guild_presence_counts(interaction.guild)
+            total, online, offline = await _guild_presence_counts(interaction.guild)
             embed = discord.Embed(
                 title="📡 لوحة البرودكاست",
                 description="يمكنك التحكم في البوت عن طريق الأزرار",
@@ -1225,6 +1274,12 @@ class BroadcastSystem(commands.Cog):
                 value=f"**```{text}```**",
                 inline=False,
             )
+            try:
+                _spd = float(config.get("send_delay", SEND_DELAY_SECONDS))
+            except Exception:
+                _spd = SEND_DELAY_SECONDS
+            _spd = max(0.1, min(1.0, _spd))
+            embed.add_field(name="⚡ السرعة", value=f"**`{_spd}s`**", inline=True)
             embed.add_field(name="👥 الأعضاء", value=f"**`{total}`**", inline=True)
             embed.add_field(name="🟢 أونلاين", value=f"**`{online}`**", inline=True)
             embed.add_field(name="⚫ أوفلاين", value=f"**`{offline}`**", inline=True)
@@ -1426,6 +1481,35 @@ class BroadcastSystem(commands.Cog):
 
 
     @app_commands.command(
+        name="edit-speed-broad",
+        description="تعديل سرعة البرودكاست (التأخير بين كل رسالة من 0.1 إلى 1 ثانية)",
+    )
+    @app_commands.describe(seconds="التأخير بالثواني بين كل إرسال (0.1 – 1.0)")
+    @app_commands.guild_only()
+    async def edit_speed_broad(self, interaction: discord.Interaction, seconds: float):
+        if not await self._require_admin(interaction):
+            return
+        try:
+            delay = float(seconds)
+        except Exception:
+            await interaction.response.send_message("❌ أدخل رقم صحيح.", ephemeral=True)
+            return
+        delay = max(0.1, min(1.0, round(delay, 2)))
+        await Storage.update_guild(
+            interaction.guild.id,
+            TOKEN_SECTION,
+            {"send_delay": delay},
+        )
+        # تقريبي: رسائل بالدقيقة لكل توكن
+        per_min = int(60 / delay) if delay > 0 else 0
+        await interaction.response.send_message(
+            f"✅ تم ضبط سرعة البرودكاست إلى **{delay}s** بين كل رسالة."
+            f"{chr(10)}≈ **{per_min}** إرسال/دقيقة لكل توكن (تقريبي)."
+            f"{chr(10)}الأقل = أسرع، والأعلى = أأمن من التقييد.",
+            ephemeral=True,
+        )
+
+    @app_commands.command(
         name="refresh-broad",
         description="تحديث عدد الأعضاء والأونلاين والأوفلاين على لوحة البرودكاست",
     )
@@ -1439,7 +1523,7 @@ class BroadcastSystem(commands.Cog):
             if guild is None:
                 await interaction.followup.send("الأمر داخل سيرفر فقط.", ephemeral=True)
                 return
-            total, online, offline = _guild_presence_counts(guild)
+            total, online, offline = await _guild_presence_counts(guild)
             try:
                 await asyncio.wait_for(self._refresh_panel(interaction), timeout=10)
             except Exception as e:

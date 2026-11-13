@@ -638,14 +638,31 @@ class AutoVoiceSystem(commands.Cog):
                     pass
 
     async def _maybe_delete_room(self, channel: discord.VoiceChannel, av: dict):
+        """حذف فوري إذا الروم المؤقت فاضي. إذا فيه أحد يبقى."""
         if str(channel.id) not in av.get("rooms", {}):
             return
-        if len(channel.members) > 0:
-            return
-
         guild = channel.guild
+        # إعادة جلب القناة للتأكد من الأعضاء الحاليين
         try:
-            await channel.delete(reason="روم صوتي فضي - حذف تلقائي")
+            fresh = guild.get_channel(channel.id) or await guild.fetch_channel(channel.id)
+        except Exception:
+            fresh = channel
+        members = getattr(fresh, "members", None) or channel.members or []
+        # تجاهل البوتات عند العدّ؟ لا — أي شخص (حتى بوت موسيقى) يبقي الروم
+        humans = [m for m in members if not m.bot]
+        if len(humans) > 0:
+            return
+        # تأخير خفيف جداً ثم إعادة فحص (سباق أحداث الديسكورد)
+        await asyncio.sleep(0.8)
+        try:
+            fresh2 = guild.get_channel(channel.id)
+            if fresh2 is None:
+                await Storage.remove_auto_voice_room(guild.id, channel.id)
+                return
+            humans2 = [m for m in (fresh2.members or []) if not m.bot]
+            if len(humans2) > 0:
+                return
+            await fresh2.delete(reason="روم صوتي فضي - حذف فوري")
         except (discord.Forbidden, discord.NotFound, discord.HTTPException):
             pass
 

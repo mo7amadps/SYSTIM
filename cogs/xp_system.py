@@ -123,6 +123,12 @@ class XPSystem(commands.Cog):
         if cfg.get("enabled") is False:
             return
 
+        # عدّ الرسائل اليومية للداشبورد (حتى لو ما انحسب XP)
+        try:
+            await Storage.record_message_stat(message.guild.id)
+        except Exception:
+            pass
+
         if cfg["no_xp_channel_ids"] and message.channel.id in cfg["no_xp_channel_ids"]:
             return
         member = message.author

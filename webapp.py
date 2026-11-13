@@ -1003,12 +1003,20 @@ async def guild_detail(request: Request, guild_id: str):
     systems_html = ""
     if tab in system_tabs:
         try:
+            xp_stats = None
+            if tab == "xp" and storage_ref:
+                try:
+                    xp_stats = await storage_ref.get_xp_dashboard_stats(int(guild_id))
+                except Exception as _xe:
+                    print(f"xp_stats error: {_xe}")
+                    xp_stats = {}
             systems_html = build_systems_html(
                 guild, guild_id, conf,
                 role_picker=_role_picker_html,
                 channel_picker=_channel_picker_html,
                 role_name_fn=_role_name,
                 only=tab,
+                xp_stats=xp_stats,
             )
         except Exception as e:
             print(f"systems_html error: {e}")

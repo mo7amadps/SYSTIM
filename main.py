@@ -96,6 +96,7 @@ INITIAL_COGS = [
     "cogs.filter_system",
     "cogs.games_system",
     "cogs.come_system",
+    "cogs.music_system",
 ]
 
 

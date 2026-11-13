@@ -977,6 +977,48 @@ class Storage:
                 "xp_week": entry.get("xp_week", 0) + amount,
                 "last_at": now,
             }
+            # إحصائيات يومية للداشبورد
+            try:
+                from datetime import datetime, timezone
+                day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+                data[gid].setdefault("xp", data[gid].get("xp") or _default_guild()["xp"])
+                stats = data[gid]["xp"].setdefault("stats", {})
+                if stats.get("day_key") != day_key:
+                    # أرشفة اليوم السابق
+                    hist = list(stats.get("history") or [])
+                    if stats.get("day_key"):
+                        hist.append({
+                            "day": stats.get("day_key"),
+                            "messages": int(stats.get("messages_today") or 0),
+                            "active": len(stats.get("active_today") or {}),
+                            "xp": int(stats.get("xp_gained_today") or 0),
+                        })
+                        hist = hist[-14:]  # آخر 14 يوم
+                    stats = {
+                        "day_key": day_key,
+                        "messages_today": int(stats.get("messages_today") or 0) if stats.get("day_key") == day_key else 0,
+                        "active_today": {},
+                        "xp_gained_today": 0,
+                        "voice_xp_gained_today": 0,
+                        "history": hist,
+                    }
+                    # fix: on day change reset counters
+                    stats["messages_today"] = 0
+                    stats["active_today"] = {}
+                    stats["xp_gained_today"] = 0
+                    stats["voice_xp_gained_today"] = 0
+                    stats["day_key"] = day_key
+                    stats["history"] = hist
+                active = dict(stats.get("active_today") or {})
+                active[uid] = int(active.get(uid) or 0) + 1
+                stats["active_today"] = active
+                if bucket == "xp":
+                    stats["xp_gained_today"] = int(stats.get("xp_gained_today") or 0) + amount
+                else:
+                    stats["voice_xp_gained_today"] = int(stats.get("voice_xp_gained_today") or 0) + amount
+                data[gid]["xp"]["stats"] = stats
+            except Exception:
+                pass
             _write(data)
             return {
                 "gained": amount,
@@ -984,6 +1026,87 @@ class Storage:
                 "old_level": old_level,
                 "new_level": new_level,
             }
+
+    @staticmethod
+    async def record_message_stat(guild_id: int):
+        """عدّ رسالة اليوم (لكل رسالة شات صالحة للتتبع)."""
+        from datetime import datetime, timezone
+        day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        async with _lock:
+            data = _read()
+            gid = str(guild_id)
+            if gid not in data:
+                data[gid] = _default_guild()
+            data[gid].setdefault("xp", _default_guild()["xp"])
+            stats = data[gid]["xp"].setdefault("stats", {})
+            if stats.get("day_key") != day_key:
+                hist = list(stats.get("history") or [])
+                if stats.get("day_key"):
+                    hist.append({
+                        "day": stats.get("day_key"),
+                        "messages": int(stats.get("messages_today") or 0),
+                        "active": len(stats.get("active_today") or {}),
+                        "xp": int(stats.get("xp_gained_today") or 0),
+                    })
+                    hist = hist[-14:]
+                stats = {
+                    "day_key": day_key,
+                    "messages_today": 0,
+                    "active_today": {},
+                    "xp_gained_today": 0,
+                    "voice_xp_gained_today": 0,
+                    "history": hist,
+                }
+            stats["messages_today"] = int(stats.get("messages_today") or 0) + 1
+            data[gid]["xp"]["stats"] = stats
+            _write(data)
+
+    @staticmethod
+    async def get_xp_dashboard_stats(guild_id: int) -> dict:
+        """إحصائيات XP للداشبورد."""
+        async with _lock:
+            data = _read()
+            gid = str(guild_id)
+            g = data.get(gid) or {}
+            xp_users = (g.get("xp") or {}).get("users") or {}
+            voice_users = (g.get("voice_xp") or {}).get("users") or {}
+            stats = dict((g.get("xp") or {}).get("stats") or {})
+
+            total_xp = sum(int(u.get("xp") or 0) for u in xp_users.values())
+            total_voice_xp = sum(int(u.get("xp") or 0) for u in voice_users.values())
+            members_with_xp = sum(1 for u in xp_users.values() if int(u.get("xp") or 0) > 0)
+            top = sorted(
+                ((uid, int(u.get("xp") or 0), int(u.get("level") or 0)) for uid, u in xp_users.items()),
+                key=lambda x: x[1],
+                reverse=True,
+            )[:5]
+
+            from datetime import datetime, timezone
+            day_key = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+            if stats.get("day_key") != day_key:
+                messages_today = 0
+                active_today = 0
+                xp_today = 0
+                voice_today = 0
+            else:
+                messages_today = int(stats.get("messages_today") or 0)
+                active_today = len(stats.get("active_today") or {})
+                xp_today = int(stats.get("xp_gained_today") or 0)
+                voice_today = int(stats.get("voice_xp_gained_today") or 0)
+
+            return {
+                "messages_today": messages_today,
+                "active_today": active_today,
+                "xp_gained_today": xp_today,
+                "voice_xp_gained_today": voice_today,
+                "total_xp": total_xp,
+                "total_voice_xp": total_voice_xp,
+                "members_with_xp": members_with_xp,
+                "top": top,
+                "history": list(stats.get("history") or [])[-7:],
+                "day_key": day_key,
+            }
+
 
     @staticmethod
     async def _get_bucket_user(guild_id: int, user_id: int, bucket: str) -> dict:

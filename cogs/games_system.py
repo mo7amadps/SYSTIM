@@ -549,18 +549,69 @@ async def _timeout(guild_id: int, key: str, default: int = 30) -> int:
     cfg = await _cfg(guild_id)
     t = (cfg.get("timeouts") or {}).get(key, default)
     try:
-        return max(5, min(100, int(t)))
+        return max(5, min(180, int(t)))
     except Exception:
         return default
+
+
+async def _lobby_timeout(guild_id: int, key: str, default: int = 30) -> int:
+    """وقت اللوبي قبل بداية اللعبة."""
+    cfg = await _cfg(guild_id)
+    lobby_map = cfg.get("lobby_timeouts") or {}
+    t = lobby_map.get(key)
+    if t is None:
+        t = (cfg.get("timeouts") or {}).get("lobby", default)
+    try:
+        return max(5, min(180, int(t)))
+    except Exception:
+        return default
+
+
+# (min_cap, max_cap, default_cap)
+GAME_CAPACITY = {
+    "silsila": (10, 40, 40),
+    "replica": (2, 30, 30),
+    "sabaq": (2, 40, 20),
+    "xo": (2, 2, 2),
+    "ghmida": (2, 30, 20),
+    "roulette": (2, 100, 50),
+    "mafia": (5, 40, 20),
+}
+
+# key, label, is_group, default_timeout, default_lobby
+EDITABLE_GAMES = [
+    ("kat", "كت", False, 30, 0),
+    ("asra", "أسرع", False, 20, 0),
+    ("player", "لاعب", False, 25, 0),
+    ("tafkik", "تفكيك", False, 20, 0),
+    ("tajmee", "تجميع", False, 20, 0),
+    ("arqam", "أرقام", False, 15, 0),
+    ("mufrad", "مفرد", False, 15, 0),
+    ("jam", "جمع", False, 15, 0),
+    ("harf", "حرف", False, 15, 0),
+    ("aks", "عكس", False, 15, 0),
+    ("silsila", "سلسلة", True, 40, 40),
+    ("replica", "ريبلكا", True, 30, 30),
+    ("sabaq", "سباق", True, 25, 30),
+    ("xo", "XO", True, 30, 20),
+    ("ghmida", "غميضة", True, 30, 30),
+    ("roulette", "روليت", True, 20, 40),
+    ("mafia", "مافيا", True, 30, 40),
+]
 
 
 async def _player_limits(
     guild_id: int, game_key: str, default_min: int = 2, default_max: int = 100
 ) -> tuple[int, int]:
-    """أقلم/أقصى لاعبين من الداشبورد لكل لعبة."""
+    """أقلم/أقصى لاعبين من الإعدادات لكل لعبة."""
     cfg = await _cfg(guild_id)
     mn_map = cfg.get("min_players") or {}
     mx_map = cfg.get("max_players") or {}
+    cap = GAME_CAPACITY.get(game_key)
+    if cap:
+        cmin, cmax, cdef = cap
+        default_min = max(default_min, cmin)
+        default_max = cdef
     try:
         mn = int(mn_map.get(game_key, default_min))
     except Exception:
@@ -571,8 +622,19 @@ async def _player_limits(
         mx = default_max
     mn = max(1, min(1000, mn))
     mx = max(mn, min(1000, mx))
+    if cap:
+        cmin, cmax, cdef = cap
+        mn = max(cmin, min(cmax, mn))
+        mx = max(cmin, min(cmax, mx))
+        if mx < mn:
+            mx = mn
     if game_key == "ghmida":
         mx = max(mn, min(30, mx))
+    if game_key == "silsila":
+        mn = max(10, min(40, mn))
+        mx = max(10, min(40, mx))
+        if mx < mn:
+            mx = mn
     return mn, mx
 
 
@@ -1345,6 +1407,151 @@ class GhmidaHuntView(discord.ui.View):
 
 
 
+
+# ───────────── /edit-games UI ─────────────
+
+class EditGameModal(discord.ui.Modal):
+    def __init__(self, cog: "GamesSystem", game_key: str, meta: tuple):
+        key, label, is_group, def_to, def_lobby = meta
+        super().__init__(title=f"تعديل · {label}"[:45])
+        self.cog = cog
+        self.game_key = game_key
+        self.meta = meta
+        self.is_group = is_group
+
+        self.timeout_in = discord.ui.TextInput(
+            label="وقت الجولة / اللعبة (ثواني)",
+            placeholder=str(def_to),
+            required=True,
+            max_length=4,
+            default=str(def_to),
+        )
+        self.add_item(self.timeout_in)
+
+        if is_group:
+            self.lobby_in = discord.ui.TextInput(
+                label="وقت بداية اللوبي (ثواني)",
+                placeholder=str(def_lobby or 30),
+                required=True,
+                max_length=4,
+                default=str(def_lobby or 30),
+            )
+            self.add_item(self.lobby_in)
+            cmin, cmax, cdef = GAME_CAPACITY.get(game_key, (2, 40, 20))
+            self.max_in = discord.ui.TextInput(
+                label=f"أقصى لاعبين ({cmin}–{cmax})",
+                placeholder=str(cdef),
+                required=True,
+                max_length=4,
+                default=str(cdef),
+            )
+            self.add_item(self.max_in)
+
+    async def on_submit(self, interaction: discord.Interaction):
+        gid = interaction.guild.id
+        cfg = await _cfg(gid)
+        timeouts = dict(cfg.get("timeouts") or {})
+        lobbies = dict(cfg.get("lobby_timeouts") or {})
+        max_map = dict(cfg.get("max_players") or {})
+
+        try:
+            to = int(str(self.timeout_in.value).strip())
+        except Exception:
+            await interaction.response.send_message("❌ وقت الجولة لازم رقم.", ephemeral=True)
+            return
+        to = max(5, min(180, to))
+        timeouts[self.game_key] = to
+
+        msg_bits = [f"⏱️ وقت الجولة: **{to}s**"]
+
+        if self.is_group:
+            try:
+                lb = int(str(self.lobby_in.value).strip())
+            except Exception:
+                await interaction.response.send_message("❌ وقت اللوبي لازم رقم.", ephemeral=True)
+                return
+            lb = max(5, min(180, lb))
+            lobbies[self.game_key] = lb
+            msg_bits.append(f"🚪 لوبي: **{lb}s**")
+
+            cmin, cmax, cdef = GAME_CAPACITY.get(self.game_key, (2, 100, 20))
+            try:
+                mx = int(str(self.max_in.value).strip())
+            except Exception:
+                await interaction.response.send_message("❌ عدد اللاعبين لازم رقم.", ephemeral=True)
+                return
+            mx = max(cmin, min(cmax, mx))
+            max_map[self.game_key] = mx
+            msg_bits.append(f"👥 السعة: **{mx}** (من {cmin} إلى {cmax})")
+
+        await Storage.update_guild(gid, SECTION, {
+            "timeouts": timeouts,
+            "lobby_timeouts": lobbies,
+            "max_players": max_map,
+        })
+        label = self.meta[1]
+        await interaction.response.send_message(
+            f"✅ تم حفظ **{label}**\n" + "\n".join(msg_bits),
+            ephemeral=True,
+        )
+
+
+class EditGamesSelect(discord.ui.Select):
+    def __init__(self, cog: "GamesSystem", guild_id: int, cfg: dict):
+        self.cog = cog
+        self.guild_id = guild_id
+        options = []
+        timeouts = cfg.get("timeouts") or {}
+        lobbies = cfg.get("lobby_timeouts") or {}
+        max_map = cfg.get("max_players") or {}
+        for key, label, is_group, def_to, def_lobby in EDITABLE_GAMES:
+            to = timeouts.get(key, def_to)
+            if is_group:
+                cmin, cmax, cdef = GAME_CAPACITY.get(key, (2, 40, 20))
+                mx = max_map.get(key, cdef)
+                lb = lobbies.get(key, def_lobby or 30)
+                desc = f"وقت {to}s · لوبي {lb}s · سعة {mx}/{cmax}"
+            else:
+                desc = f"وقت {to}s"
+            options.append(discord.SelectOption(
+                label=label[:100],
+                value=key,
+                description=desc[:100],
+            ))
+        super().__init__(
+            placeholder="اختر لعبة لتعديلها…",
+            min_values=1,
+            max_values=1,
+            options=options[:25],
+        )
+
+    async def callback(self, interaction: discord.Interaction):
+        key = self.values[0]
+        meta = next((m for m in EDITABLE_GAMES if m[0] == key), None)
+        if not meta:
+            await interaction.response.send_message("لعبة غير معروفة.", ephemeral=True)
+            return
+        # عبّي القيم الحالية
+        cfg = await _cfg(interaction.guild.id)
+        timeouts = cfg.get("timeouts") or {}
+        lobbies = cfg.get("lobby_timeouts") or {}
+        max_map = cfg.get("max_players") or {}
+        key, label, is_group, def_to, def_lobby = meta
+        modal = EditGameModal(self.cog, key, meta)
+        modal.timeout_in.default = str(timeouts.get(key, def_to))
+        if is_group:
+            modal.lobby_in.default = str(lobbies.get(key, def_lobby or 30))
+            cmin, cmax, cdef = GAME_CAPACITY.get(key, (2, 40, 20))
+            modal.max_in.default = str(max_map.get(key, cdef))
+        await interaction.response.send_modal(modal)
+
+
+class EditGamesView(discord.ui.View):
+    def __init__(self, cog: "GamesSystem", guild_id: int, cfg: dict):
+        super().__init__(timeout=300)
+        self.add_item(EditGamesSelect(cog, guild_id, cfg))
+
+
 class GamesSystem(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
@@ -1455,13 +1662,15 @@ class GamesSystem(commands.Cog):
             return
         if isinstance(host, discord.Member) and not await _can_start(host, game_type):
             return  # صامت
-        cfg_min, cfg_max = await _player_limits(channel.guild.id, game_type, min_players, 300)
+        def_max = GAME_CAPACITY.get(game_type, (2, 300, 300))[2]
+        cfg_min, cfg_max = await _player_limits(channel.guild.id, game_type, min_players, def_max)
         cfg = await _cfg(channel.guild.id)
         lobby_map = cfg.get("lobby_timeouts") or {}
+        _lobby_default = 40 if game_type == "silsila" else 30
         try:
-            lobby_secs = int(lobby_map.get(game_type) or (cfg.get("timeouts") or {}).get("lobby") or 30)
+            lobby_secs = int(lobby_map.get(game_type) or (cfg.get("timeouts") or {}).get("lobby") or _lobby_default)
         except Exception:
-            lobby_secs = 30
+            lobby_secs = _lobby_default
         lobby_secs = max(15, min(600, int(lobby_secs)))
         modes = cfg.get("lobby_modes") or {}
         lobby_mode = str(modes.get(game_type) or cfg.get("lobby_mode") or "timer").lower()
@@ -1850,7 +2059,7 @@ class GamesSystem(commands.Cog):
 
     async def _run_silsila(self, channel, st):
         """جولات مرتبة · الوقت ينقص كل جولة · كلمة واحدة بدون تكرار."""
-        base_timeout = await _timeout(channel.guild.id, "silsila", 30)
+        base_timeout = await _timeout(channel.guild.id, "silsila", 40)
         st["elim_fixed"] = await _eliminate_setting(channel.guild.id, "silsila")
         word = st.get("seed_word") or random.choice([w for w in WORDS if " " not in w])
         word = word.split()[0]
@@ -3392,6 +3601,49 @@ class GamesSystem(commands.Cog):
         )
         emb.set_footer(text="الرتب والأوقات من الداشبورد")
         await ctx.reply(embed=emb, mention_author=False)
+
+
+    @app_commands.command(name="edit-games", description="لوحة تعديل أوقات وسعة الألعاب (سلسلة، روليت، …)")
+    @app_commands.guild_only()
+    @app_commands.checks.has_permissions(administrator=True)
+    async def edit_games_cmd(self, interaction: discord.Interaction):
+        cfg = await _cfg(interaction.guild.id)
+        lines = []
+        timeouts = cfg.get("timeouts") or {}
+        lobbies = cfg.get("lobby_timeouts") or {}
+        max_map = cfg.get("max_players") or {}
+        for key, label, is_group, def_to, def_lobby in EDITABLE_GAMES:
+            to = timeouts.get(key, def_to)
+            if is_group:
+                cmin, cmax, cdef = GAME_CAPACITY.get(key, (2, 40, 20))
+                mx = max_map.get(key, cdef)
+                lb = lobbies.get(key, def_lobby or 30)
+                lines.append(f"**{label}** · جولة `{to}s` · لوبي `{lb}s` · سعة `{mx}` (حد {cmax})")
+            else:
+                lines.append(f"**{label}** · وقت `{to}s`")
+        emb = discord.Embed(
+            title="🎮 تعديل الألعاب",
+            description=(
+                "اختر لعبة من القائمة تحت عشان تعدّل:" + chr(10)
+                + "• **وقت الجولة** (ثواني)" + chr(10)
+                + "• **وقت اللوبي** (للجماعية)" + chr(10)
+                + "• **السعة** — مثال سلسلة من **10** إلى **40**" + chr(10) + chr(10)
+                + chr(10).join(lines[:14])
+                + (chr(10) + "…" if len(lines) > 14 else "")
+            ),
+            color=discord.Color.from_rgb(88, 101, 242),
+        )
+        emb.set_footer(text="الإعدادات تنحفظ فوراً · سلسلة افتراضي 40 لاعب / 40ث")
+        view = EditGamesView(self, interaction.guild.id, cfg)
+        await interaction.response.send_message(embed=emb, view=view, ephemeral=True)
+
+    @edit_games_cmd.error
+    async def edit_games_error(self, interaction: discord.Interaction, error):
+        if isinstance(error, app_commands.MissingPermissions):
+            if not interaction.response.is_done():
+                await interaction.response.send_message("❌ للأدمن فقط.", ephemeral=True)
+            return
+        raise error
 
 
 async def setup(bot: commands.Bot):

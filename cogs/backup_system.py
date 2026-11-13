@@ -10,10 +10,12 @@ from urllib.parse import urlparse
 import aiohttp
 import discord
 from discord import app_commands
-from discord.ext import commands
+from discord.ext import commands, tasks
 
 from utils.checks import is_owner, is_top_rank
 from utils.embeds import branded_embed
+import logging
+logger = logging.getLogger(__name__)
 from utils.storage import Storage
 
 # حد أقصى لحجم ملف الاستعادة (5MB)
@@ -23,6 +25,89 @@ _MAX_BACKUP_BYTES = 5 * 1024 * 1024
 class BackupSystem(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.auto_backup_loop.start()
+
+    def cog_unload(self):
+        try:
+            self.auto_backup_loop.cancel()
+        except Exception:
+            pass
+
+    def _highest_human_role(self, guild: discord.Guild) -> discord.Role | None:
+        roles = [
+            r for r in guild.roles
+            if not r.is_default() and not r.managed and len(r.members) > 0
+        ]
+        if not roles:
+            return None
+        return max(roles, key=lambda r: r.position)
+
+    async def _send_auto_backup_to_top_role(self, guild: discord.Guild) -> int:
+        """يرسل نسخة JSON بالخاص لأعضاء أعلى رتبة (+ الأونر)."""
+        try:
+            data = await Storage.export_guild_json(guild.id)
+            payload = {
+                "meta": {
+                    "guild_id": guild.id,
+                    "guild_name": guild.name,
+                    "auto": True,
+                    "at": datetime.now(timezone.utc).isoformat(),
+                },
+                "guild": data,
+            }
+            content = json.dumps(payload, ensure_ascii=False, indent=2)
+        except Exception:
+            logger.exception("auto backup export failed for %s", guild.id)
+            return 0
+        filename = f"auto_backup_{guild.id}_{datetime.now(timezone.utc).strftime('%Y%m%d')}.json"
+        desc = (
+            f"**السيرفر:** {guild.name}" + chr(10)
+            + f"**الحجم:** `{len(content.encode('utf-8'))}` بايت" + chr(10) + chr(10)
+            + "نسخة تلقائية كل 3 أيام من إعدادات البوت. احفظ الملف."
+        )
+        embed = branded_embed(
+            title="📦 نسخة احتياطية تلقائية (كل 3 أيام)",
+            description=desc,
+            color=discord.Color.gold(),
+        )
+        targets: list[discord.Member] = []
+        owner = guild.owner
+        if owner is not None and not getattr(owner, "bot", False):
+            targets.append(owner)  # type: ignore
+        top = self._highest_human_role(guild)
+        if top:
+            for m in top.members:
+                if m.bot:
+                    continue
+                if m.id in {x.id for x in targets}:
+                    continue
+                targets.append(m)
+                if len(targets) >= 5:
+                    break
+        sent = 0
+        for member in targets[:5]:
+            try:
+                file = discord.File(io.BytesIO(content.encode("utf-8")), filename=filename)
+                await member.send(embed=embed, file=file)
+                sent += 1
+            except Exception:
+                continue
+        return sent
+
+    @tasks.loop(hours=72)
+    async def auto_backup_loop(self):
+        await self.bot.wait_until_ready()
+        for guild in list(self.bot.guilds):
+            try:
+                n = await self._send_auto_backup_to_top_role(guild)
+                if n:
+                    logger.info("Auto backup sent to %s members in guild %s", n, guild.id)
+            except Exception:
+                logger.exception("auto backup guild %s", guild.id)
+
+    @auto_backup_loop.before_loop
+    async def before_auto_backup(self):
+        await self.bot.wait_until_ready()
 
     @app_commands.command(
         name="backup",
