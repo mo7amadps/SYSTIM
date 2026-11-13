@@ -1,4 +1,4 @@
-"""نظام موسيقى بسيط: !شغل · !وقف · بانل تحكم."""
+"""نظام موسيقى بسيط: !شغل · !وقف-اغنية · !تخطي · !موسيقى."""
 from __future__ import annotations
 
 import asyncio
@@ -265,7 +265,7 @@ class MusicSystem(commands.Cog):
             except Exception:
                 pass
 
-    @commands.command(name="وقف", aliases=["stop"])
+    @commands.command(name="وقف-اغنية", aliases=["ايقاف-اغنية", "mstop", "stopmusic"])
     async def stop_cmd(self, ctx: commands.Context):
         p = self.get_player(ctx.guild.id)
         p.queue.clear()
@@ -275,7 +275,7 @@ class MusicSystem(commands.Cog):
             await p.voice.disconnect()
             p.voice = None
         p.current = None
-        await ctx.reply("⏹️ تم الإيقاف ومغادرة الفويس.")
+        await ctx.reply("⏹️ تم إيقاف الأغنية ومغادرة الفويس.")
 
     @commands.command(name="تخطي", aliases=["skip", "s"])
     async def skip_cmd(self, ctx: commands.Context):
