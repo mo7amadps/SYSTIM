@@ -574,7 +574,7 @@ GAME_CAPACITY = {
     "sabaq": (2, 40, 20),
     "xo": (2, 2, 2),
     "ghmida": (2, 30, 20),
-    "roulette": (2, 100, 50),
+    "roulette": (2, 1000, 50),
     "mafia": (5, 40, 20),
 }
 
