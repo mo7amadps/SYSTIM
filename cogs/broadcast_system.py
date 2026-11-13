@@ -139,6 +139,17 @@ async def _guild_presence_counts(guild: discord.Guild) -> tuple[int, int, int]:
             if approx_total is not None and approx_online is not None:
                 total = int(approx_total)
                 online = int(approx_online)
+                # استبعد البوتات (ما تستقبل برودكاست) بنفس منطق الإرسال
+                cached_bots = [m for m in guild.members if m.bot]
+                total = max(0, total - len(cached_bots))
+                online = max(0, online - sum(
+                    1 for m in cached_bots
+                    if m.status in {
+                        discord.Status.online,
+                        discord.Status.idle,
+                        discord.Status.dnd,
+                    }
+                ))
                 online = max(0, min(online, total))
                 offline = max(0, total - online)
                 return total, online, offline
@@ -702,12 +713,23 @@ class BroadcastSystem(commands.Cog):
                 "ما في أي توكن صالح حالياً. أضف بوت جديد أو افحص إعدادات Secrets.",
             )
 
+        # تحميل كل الأعضاء (سيرفر كبير يحتاج وقت أطول من 45 ثانية)
         try:
-            await asyncio.wait_for(guild.chunk(cache=True), timeout=45)
+            if not guild.chunked:
+                await asyncio.wait_for(guild.chunk(cache=True), timeout=240)
         except Exception:
             # نكمّل بالأعضاء الموجودين بالكاش
             pass
-        members = [member for member in guild.members if not member.bot]
+        members_by_id = {member.id: member for member in guild.members}
+        # لو الكاش ناقص: كمّل الأعضاء الناقصين عبر REST (للكل/الأوفلاين)
+        expected = guild.member_count or 0
+        if audience != "online" and expected and len(members_by_id) < expected * 0.98:
+            try:
+                async for fetched_member in guild.fetch_members(limit=None):
+                    members_by_id.setdefault(fetched_member.id, fetched_member)
+            except Exception:
+                pass
+        members = [member for member in members_by_id.values() if not member.bot]
         if audience == "online":
             members = [member for member in members if _is_online(member)]
             if not members:
