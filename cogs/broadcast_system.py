@@ -123,58 +123,39 @@ def _safe_validation_error(reason: str) -> str:
 
 
 async def _guild_presence_counts(guild: discord.Guild) -> tuple[int, int, int]:
-    """إجمالي · أونلاين · أوفلاين — يطابق عدّاد السيرفر قدر الإمكان.
-
-    1) يجرب approximate counts من API ديسكورد (نفس أرقام الواجهة تقريباً)
-    2) وإلا يعد من الكاش بعد chunk (Presence Intent مطلوب للأونلاين الدقيق)
-    """
-    # --- طريقة ديسكورد الرسمية (تقريبية وتشمل البوتات مثل عدّاد السيرفر) ---
+    """إجمالي · أونلاين · أوفلاين — نفس منطق قائمة البرود (بشر بدون بوتات)."""
     try:
-        state = getattr(guild, "_state", None)
-        client = getattr(state, "client", None) or getattr(state, "_get_client", lambda: None)()
-        if client is not None and hasattr(client, "fetch_guild"):
-            fetched = await client.fetch_guild(guild.id, with_counts=True)
-            approx_total = getattr(fetched, "approximate_member_count", None)
-            approx_online = getattr(fetched, "approximate_presence_count", None)
-            if approx_total is not None and approx_online is not None:
-                total = int(approx_total)
-                online = int(approx_online)
-                # استبعد البوتات (ما تستقبل برودكاست) بنفس منطق الإرسال
-                cached_bots = [m for m in guild.members if m.bot]
-                total = max(0, total - len(cached_bots))
-                online = max(0, online - sum(
-                    1 for m in cached_bots
-                    if m.status in {
-                        discord.Status.online,
-                        discord.Status.idle,
-                        discord.Status.dnd,
-                    }
-                ))
-                online = max(0, min(online, total))
-                offline = max(0, total - online)
-                return total, online, offline
+        member_count = int(getattr(guild, "member_count", 0) or 0)
+        timeout = 90 if member_count > 5000 else 45
+        need_chunk = (not guild.chunked) or (
+            member_count > 0 and len(guild.members) < int(member_count * 0.7)
+        )
+        if need_chunk:
+            await asyncio.wait_for(guild.chunk(cache=True), timeout=timeout)
     except Exception:
-        pass
+        try:
+            if not guild.chunked:
+                await guild.chunk(cache=True)
+        except Exception:
+            pass
 
-    # --- احتياطي: الكاش المحلي ---
-    try:
-        if not guild.chunked:
-            await guild.chunk(cache=True)
-    except Exception:
-        pass
-
-    members = list(guild.members)
-    # نفس منطق عدّاد ديسكورد تقريباً: كل الأعضاء (بما فيهم البوتات)
-    total = len(members)
-    online = sum(
-        1
-        for m in members
-        if m.status in {
-            discord.Status.online,
-            discord.Status.idle,
-            discord.Status.dnd,
-        }
-    )
+    online_states = {
+        discord.Status.online,
+        discord.Status.idle,
+        discord.Status.dnd,
+    }
+    humans = [m for m in guild.members if not m.bot]
+    total = len(humans)
+    online = 0
+    for m in humans:
+        if m.status in online_states:
+            online += 1
+            continue
+        try:
+            if any(isinstance(a, discord.Streaming) for a in (m.activities or [])):
+                online += 1
+        except Exception:
+            pass
     offline = max(0, total - online)
     return total, online, offline
 
@@ -713,23 +694,14 @@ class BroadcastSystem(commands.Cog):
                 "ما في أي توكن صالح حالياً. أضف بوت جديد أو افحص إعدادات Secrets.",
             )
 
-        # تحميل كل الأعضاء (سيرفر كبير يحتاج وقت أطول من 45 ثانية)
         try:
-            if not guild.chunked:
-                await asyncio.wait_for(guild.chunk(cache=True), timeout=240)
+            member_count = int(getattr(guild, "member_count", 0) or 0)
+            timeout = 90 if member_count > 5000 else 45
+            await asyncio.wait_for(guild.chunk(cache=True), timeout=timeout)
         except Exception:
             # نكمّل بالأعضاء الموجودين بالكاش
             pass
-        members_by_id = {member.id: member for member in guild.members}
-        # لو الكاش ناقص: كمّل الأعضاء الناقصين عبر REST (للكل/الأوفلاين)
-        expected = guild.member_count or 0
-        if audience != "online" and expected and len(members_by_id) < expected * 0.98:
-            try:
-                async for fetched_member in guild.fetch_members(limit=None):
-                    members_by_id.setdefault(fetched_member.id, fetched_member)
-            except Exception:
-                pass
-        members = [member for member in members_by_id.values() if not member.bot]
+        members = [member for member in guild.members if not member.bot]
         if audience == "online":
             members = [member for member in members if _is_online(member)]
             if not members:
@@ -972,6 +944,7 @@ class BroadcastSystem(commands.Cog):
             embed.add_field(name="👥 الأعضاء", value=f"**`{total}`**", inline=True)
             embed.add_field(name="🟢 أونلاين", value=f"**`{online}`**", inline=True)
             embed.add_field(name="⚫ أوفلاين", value=f"**`{offline}`**", inline=True)
+            embed.set_footer(text="الأرقام = نفس قائمة البرود (بدون بوتات) · أونلاين = اللي ينرسل لهم")
             await panel_message.edit(embed=embed, view=BroadcastPanelView(self))
         except (discord.NotFound, discord.Forbidden, discord.HTTPException):
             pass
@@ -1305,6 +1278,7 @@ class BroadcastSystem(commands.Cog):
             embed.add_field(name="👥 الأعضاء", value=f"**`{total}`**", inline=True)
             embed.add_field(name="🟢 أونلاين", value=f"**`{online}`**", inline=True)
             embed.add_field(name="⚫ أوفلاين", value=f"**`{offline}`**", inline=True)
+            embed.set_footer(text="الأرقام = نفس قائمة البرود (بدون بوتات) · أونلاين = اللي ينرسل لهم")
             panel_message = await interaction.followup.send(
                 embed=embed,
                 view=BroadcastPanelView(self),
