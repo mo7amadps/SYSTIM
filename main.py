@@ -101,7 +101,7 @@ INITIAL_COGS = [
 
 
 async def _sync_slash_commands():
-    """مزامنة فورية لكل سيرفر + مزامنة عالمية."""
+    """مزامنة فورية على السيرفر + مسح النسخة العامة عشان ما يظهر كل أمر مرتين."""
     for guild in list(bot.guilds):
         try:
             bot.tree.copy_global_to(guild=guild)
@@ -110,10 +110,19 @@ async def _sync_slash_commands():
         except Exception as e:
             print(f"⚠️ فشل sync لـ {guild.id} ({getattr(guild, 'name', '?')}): {e}")
     try:
-        synced = await bot.tree.sync()
-        print(f"🌍 مزامنة عالمية: {len(synced)} أمر")
+        # نمسح الأوامر العامة من ديسكورد فقط، ونرجّعها للـtree بعدها
+        # (نسخة السيرفر اللي فوق تبقى شغالة، و on_guild_join يحتاجها).
+        if await bot.tree.fetch_commands():
+            saved = bot.tree.get_commands()
+            bot.tree.clear_commands(guild=None)
+            try:
+                await bot.tree.sync()
+            finally:
+                for cmd in saved:
+                    bot.tree.add_command(cmd)
+            print("🧹 تم مسح الأوامر العامة المكررة")
     except Exception as e:
-        print(f"⚠️ فشلت المزامنة العالمية: {e}")
+        print(f"⚠️ فشل مسح الأوامر العامة: {e}")
 
 
 @bot.event

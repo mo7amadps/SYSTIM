@@ -5,6 +5,7 @@ import base64
 import hashlib
 import logging
 import os
+import time
 from datetime import datetime, timezone
 from typing import Awaitable, Callable
 
@@ -18,7 +19,17 @@ from utils.checks import is_owner
 
 
 SEND_DELAY_SECONDS = 0.2
-PROGRESS_EVERY = 1  # تحديث العداد بعد كل إرسال
+PROGRESS_INTERVAL_SECONDS = 2.0  # تحديث رسالة العداد كل ثانيتين (مو بعد كل إرسال)
+PRESENCE_CACHE_SECONDS = 20
+MAX_SEND_ATTEMPTS = 3          # محاولات للأخطاء المؤقتة (timeout / 5xx)
+SLOW_DM_BACKOFF_SECONDS = 20   # لما ديسكورد يقول "opening DMs too fast"
+SLOW_DM_MAX_HITS = 5           # بعدها نوقف هالتوكن ونوزع شغله على الباقي
+# أكواد ديسكورد: 50007 = ما بنقدر نرسل لهالمستخدم (DM مقفول) · 10013 = مستخدم مجهول
+DM_CLOSED_CODES = {50007, 10013}
+# 40003 = You are opening direct messages too fast
+SLOW_DM_CODES = {40003}
+# توكن ميت/مقيّد: 401 أو 40001 أو 40002 (لازم توثيق) أو 20026
+DEAD_TOKEN_CODES = {40001, 40002, 20026}
 TOKEN_SECTION = "broadcast"
 logger = logging.getLogger(__name__)
 
@@ -122,43 +133,127 @@ def _safe_validation_error(reason: str) -> str:
 
 
 
-async def _guild_presence_counts(guild: discord.Guild) -> tuple[int, int, int]:
-    """إجمالي · أونلاين · أوفلاين — نفس منطق قائمة البرود (بشر بدون بوتات)."""
+_ONLINE_STATUSES = {
+    discord.Status.online,
+    discord.Status.idle,
+    discord.Status.dnd,
+}
+_presence_cache: dict[int, tuple[float, set[int]]] = {}
+_presence_locks: dict[int, asyncio.Lock] = {}
+
+
+def _member_is_online(member) -> bool:
     try:
+        if member.status in _ONLINE_STATUSES:
+            return True
+        return any(
+            isinstance(activity, discord.Streaming)
+            for activity in (member.activities or ())
+        )
+    except Exception:
+        return False
+
+
+async def _request_presence_chunk(guild: discord.Guild, timeout: float):
+    """
+    يطلب أعضاء السيرفر من الـGateway مع presences=True.
+
+    guild.chunk() العادي يطلب الأعضاء بدون presences، والسيرفرات الكبيرة ما
+    ترسل حالة الجميع بالـGUILD_CREATE، فكان الأونلاين ينعد أقل من الحقيقي.
+    """
+    state = guild._state
+    original = state.chunker
+
+    async def chunker_with_presences(
+        guild_id, query="", limit=0, presences=False, *, nonce=None
+    ):
+        return await original(
+            guild_id, query=query, limit=limit, presences=True, nonce=nonce
+        )
+
+    state.chunker = chunker_with_presences
+    try:
+        return await asyncio.wait_for(
+            state.chunk_guild(guild, cache=False), timeout=timeout
+        )
+    except BaseException:
+        state._chunk_requests.pop(guild.id, None)
+        raise
+    finally:
+        state.chunker = original
+
+
+async def _ensure_members_cached(guild: discord.Guild) -> None:
+    member_count = int(getattr(guild, "member_count", 0) or 0)
+    timeout = 90 if member_count > 5000 else 45
+    need_chunk = (not guild.chunked) or (
+        member_count > 0 and len(guild.members) < int(member_count * 0.7)
+    )
+    if need_chunk:
+        try:
+            await asyncio.wait_for(guild.chunk(cache=True), timeout=timeout)
+        except Exception:
+            pass
+
+
+async def _online_member_ids(guild: discord.Guild, force: bool = False) -> set[int]:
+    """ids الأعضاء (بدون بوتات) اللي حالتهم أونلاين/idle/dnd/بث، بعد مزامنة الـpresences."""
+    cached = _presence_cache.get(guild.id)
+    if cached and not force and time.monotonic() - cached[0] < PRESENCE_CACHE_SECONDS:
+        return cached[1]
+
+    lock = _presence_locks.setdefault(guild.id, asyncio.Lock())
+    async with lock:
+        cached = _presence_cache.get(guild.id)
+        if cached and not force and time.monotonic() - cached[0] < PRESENCE_CACHE_SECONDS:
+            return cached[1]
+
+        await _ensure_members_cached(guild)
         member_count = int(getattr(guild, "member_count", 0) or 0)
         timeout = 90 if member_count > 5000 else 45
-        need_chunk = (not guild.chunked) or (
-            member_count > 0 and len(guild.members) < int(member_count * 0.7)
-        )
-        if need_chunk:
-            await asyncio.wait_for(guild.chunk(cache=True), timeout=timeout)
-    except Exception:
-        try:
-            if not guild.chunked:
-                await guild.chunk(cache=True)
-        except Exception:
-            pass
 
-    online_states = {
-        discord.Status.online,
-        discord.Status.idle,
-        discord.Status.dnd,
-    }
+        online: set[int] = set()
+        try:
+            fetched = await _request_presence_chunk(guild, timeout)
+            for member in fetched or []:
+                if not member.bot and _member_is_online(member):
+                    online.add(member.id)
+        except Exception:
+            logger.warning(
+                "presence chunk failed for guild %s; using cached presences",
+                guild.id,
+                exc_info=True,
+            )
+
+        # حالات الكاش الحي (PRESENCE_UPDATE) نضيفها فوق نتيجة الطلب.
+        for member in guild.members:
+            if not member.bot and _member_is_online(member):
+                online.add(member.id)
+
+        _presence_cache[guild.id] = (time.monotonic(), online)
+        return online
+
+
+async def _guild_presence_counts(
+    guild: discord.Guild, force: bool = False
+) -> tuple[int, int, int]:
+    """إجمالي · أونلاين · أوفلاين — نفس منطق قائمة البرود (بشر بدون بوتات)."""
+    online_ids = await _online_member_ids(guild, force=force)
     humans = [m for m in guild.members if not m.bot]
     total = len(humans)
-    online = 0
-    for m in humans:
-        if m.status in online_states:
-            online += 1
-            continue
-        try:
-            if any(isinstance(a, discord.Streaming) for a in (m.activities or [])):
-                online += 1
-        except Exception:
-            pass
-    offline = max(0, total - online)
-    return total, online, offline
+    online = sum(1 for m in humans if m.id in online_ids)
+    return total, online, max(0, total - online)
 
+
+def _fmt_duration(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    minutes, secs = divmod(seconds, 60)
+    hours, minutes = divmod(minutes, 60)
+    if hours:
+        return f"{hours}س {minutes:02d}د"
+    if minutes:
+        return f"{minutes}د {secs:02d}ث"
+    return f"{secs}ث"
 
 
 def _broadcast_embed(
@@ -167,14 +262,45 @@ def _broadcast_embed(
     done: int,
     failed: int,
     color: discord.Color,
+    stats: dict | None = None,
 ) -> discord.Embed:
+    lines = [
+        f"👥 عدد الأعضاء: `{total}`",
+        f"✅ تم الإرسال إلى: `{done}`",
+        f"❌ فشل الإرسال إلى: `{failed}`",
+    ]
+    if stats and total > 0:
+        processed = done + failed
+        pct = min(100, int(processed * 100 / total))
+        filled = pct // 10
+        lines.append(f"{'▰' * filled}{'▱' * (10 - filled)} `{pct}%`")
+
+        started = stats.get("started")
+        if started is not None:
+            end = stats.get("finished_at") or time.monotonic()
+            elapsed = max(0.001, end - started)
+            run_processed = max(0, processed - stats.get("initial", 0))
+            if stats.get("finished_at"):
+                lines.append(f"⏱️ المدة: `{_fmt_duration(elapsed)}`")
+            elif run_processed > 0:
+                rate = run_processed / elapsed
+                eta = (total - processed) / rate if rate > 0 else 0
+                lines.append(
+                    f"⚡ `{rate:.1f}` رسالة/ثانية · ⏳ المتبقي `{_fmt_duration(eta)}`"
+                )
+
+        extras = []
+        if stats.get("closed"):
+            extras.append(f"🔒 DM مقفول: `{stats['closed']}`")
+        if stats.get("errors"):
+            extras.append(f"⚠️ أخطاء: `{stats['errors']}`")
+        if stats.get("dead_tokens"):
+            extras.append(f"🤖 توكنات متوقفة: `{stats['dead_tokens']}`")
+        if extras:
+            lines.append(" · ".join(extras))
     return discord.Embed(
         title=title,
-        description=(
-            f"**👥 عدد الأعضاء: `{total}`\n"
-            f"✅ تم الإرسال إلى: `{done}`\n"
-            f"❌ فشل الإرسال إلى: `{failed}`**"
-        ),
+        description="**" + chr(10).join(lines) + "**",
         color=color,
     )
 
@@ -220,18 +346,35 @@ def _can_manage_broadcast_bots(member: discord.Member, config: dict | None = Non
     return False
 
 
-def _is_online(member: discord.Member) -> bool:
-    return (
-        member.status in {
-            discord.Status.online,
-            discord.Status.idle,
-            discord.Status.dnd,
-        }
-        or any(
-            isinstance(activity, discord.Streaming)
-            for activity in member.activities
-        )
-    )
+async def _open_dm(client: discord.Client, member_id: int):
+    """يفتح DM مباشرة بالـid (طلب HTTP واحد) بدل fetch_user + create_dm."""
+    create_dm = getattr(client, "create_dm", None)
+    if create_dm is not None:
+        return await asyncio.wait_for(create_dm(discord.Object(id=member_id)), timeout=15)
+    user = await asyncio.wait_for(client.fetch_user(member_id), timeout=15)
+    return await asyncio.wait_for(user.create_dm(), timeout=15)
+
+
+def _classify_dm_error(error: Exception) -> str:
+    """
+    closed = الشخص مقفل الخاص (ما في فايدة من إعادة المحاولة)
+    slow   = ديسكورد يقول إننا نفتح DM بسرعة كبيرة → هدّي وأعد
+    dead   = التوكن نفسه ميت/مقيّد → أوقفه ووزّع شغله على الباقي
+    retry  = خطأ مؤقت (timeout / 5xx) → أعد المحاولة
+    """
+    if isinstance(error, discord.LoginFailure):
+        return "dead"
+    code = getattr(error, "code", None)
+    status = getattr(error, "status", None)
+    if code in DM_CLOSED_CODES:
+        return "closed"
+    if code in SLOW_DM_CODES:
+        return "slow"
+    if status == 401 or code in DEAD_TOKEN_CODES:
+        return "dead"
+    if isinstance(error, discord.Forbidden) or status in (403, 404):
+        return "closed"
+    return "retry"
 
 
 async def run_broadcast(
@@ -245,73 +388,120 @@ async def run_broadcast(
     initial_done: int = 0,
     initial_failed: int = 0,
     send_delay: float = SEND_DELAY_SECONDS,
+    stats: dict | None = None,
 ) -> None:
-    """يرسل بالتوازي بين التوكنات، وبالتتابع داخل كل توكن."""
+    """
+    كل التوكنات تسحب من طابور واحد مشترك (الأسرع يرسل أكثر).
+    إذا توكن وقع/اتقيّد، العضو اللي كان معه يرجع للطابور وياخده توكن ثاني.
+    """
+    if stats is None:
+        stats = {}
     if not tokens:
         await on_done(initial_done, initial_failed + len(member_ids), False)
         return
 
-    # نوزع القائمة بالتساوي على كل التوكنات؛ مثلاً 300 عضو و3 توكنات
-    # تعني 100 عضو لكل توكن. كل التوكنات تعمل معاً عبر asyncio.gather.
-    remaining_ids = member_ids[max(0, start_index):]
-    buckets = [[] for _ in tokens]
-    for index, member_id in enumerate(remaining_ids):
-        buckets[index % len(tokens)].append(member_id)
+    queue: asyncio.Queue = asyncio.Queue()
+    for member_id in member_ids[max(0, start_index):]:
+        queue.put_nowait((member_id, 0))
 
     done = initial_done
     failed = initial_failed
-    counters_lock = asyncio.Lock()
-    progress_lock = asyncio.Lock()
-    stopped = False
+    closed = errors = dead_tokens = 0
+    in_flight = 0
+    delay = max(0.1, min(1.0, float(send_delay)))
+    finished = asyncio.Event()
+    stats.update(started=time.monotonic(), initial=initial_done + initial_failed)
 
-    async def report_progress(done_value: int, failed_value: int):
-        async with progress_lock:
-            await on_progress(done_value, failed_value)
+    def sync_stats():
+        stats.update(closed=closed, errors=errors, dead_tokens=dead_tokens)
 
-    async def record_result(success: bool):
-        nonlocal done, failed
-        async with counters_lock:
-            if success:
-                done += 1
-            else:
-                failed += 1
-            processed = done + failed
-            should_report = processed % PROGRESS_EVERY == 0
+    # العدادات تتحدث بدون أي await؛ تحديث رسالة Discord من مهمة منفصلة كل
+    # PROGRESS_INTERVAL_SECONDS حتى ما ينتظر أي توكن تعديل الرسالة.
+    async def progress_loop():
+        last = None
+        while not finished.is_set():
+            try:
+                await asyncio.wait_for(finished.wait(), timeout=PROGRESS_INTERVAL_SECONDS)
+            except asyncio.TimeoutError:
+                pass
+            if finished.is_set():
+                break
             snapshot = (done, failed)
+            if snapshot != last:
+                last = snapshot
+                sync_stats()
+                try:
+                    await on_progress(*snapshot)
+                except Exception:
+                    logger.exception("Broadcast progress update failed")
 
-        # لا نرسل تحديثات Discord متزامنة من أكثر من توكن.
-        if should_report:
-            await report_progress(*snapshot)
-
-    async def run_token(token: str, bucket: list[int]) -> bool:
-        nonlocal done, failed, stopped
-        if not bucket:
-            return False
-
+    async def run_token(token: str) -> None:
+        nonlocal done, failed, closed, errors, dead_tokens, in_flight
         client = discord.Client(intents=discord.Intents.none())
+        slow_hits = 0
         try:
             try:
                 await asyncio.wait_for(client.login(token), timeout=20)
             except Exception:
-                async with counters_lock:
-                    failed += len(bucket)
-                    snapshot = (done, failed)
-                await report_progress(*snapshot)
-                return False
+                dead_tokens += 1
+                return
 
-            for member_id in bucket:
-                if stop_event.is_set():
-                    stopped = True
-                    break
+            while not stop_event.is_set():
                 try:
-                    user = await asyncio.wait_for(client.fetch_user(member_id), timeout=15)
-                    body = f"**{message}{chr(10)}<@{member_id}>**"
-                    await asyncio.wait_for(user.send(body), timeout=20)
-                    await record_result(True)
-                except Exception:
-                    await record_result(False)
-                if not stop_event.is_set():
-                    await asyncio.sleep(max(0.1, min(1.0, float(send_delay))))
+                    member_id, attempt = queue.get_nowait()
+                except asyncio.QueueEmpty:
+                    if in_flight == 0:
+                        return
+                    # توكن ثاني ممكن يرجّع عضو للطابور؛ ننتظر شوي
+                    await asyncio.sleep(0.2)
+                    continue
+
+                in_flight += 1
+                retire = False
+                backoff = 0.0
+                try:
+                    try:
+                        dm = await _open_dm(client, member_id)
+                        await asyncio.wait_for(
+                            dm.send(f"**{message}{chr(10)}<@{member_id}>**"),
+                            timeout=20,
+                        )
+                        outcome = "ok"
+                    except asyncio.CancelledError:
+                        raise
+                    except Exception as error:
+                        outcome = _classify_dm_error(error)
+
+                    if outcome == "ok":
+                        done += 1
+                        slow_hits = 0
+                    elif outcome == "closed":
+                        failed += 1
+                        closed += 1
+                    elif outcome == "slow":
+                        queue.put_nowait((member_id, attempt))
+                        slow_hits += 1
+                        backoff = SLOW_DM_BACKOFF_SECONDS * slow_hits
+                        retire = slow_hits >= SLOW_DM_MAX_HITS
+                    elif outcome == "dead":
+                        queue.put_nowait((member_id, attempt))
+                        retire = True
+                    else:  # retry
+                        if attempt + 1 < MAX_SEND_ATTEMPTS:
+                            queue.put_nowait((member_id, attempt + 1))
+                        else:
+                            failed += 1
+                            errors += 1
+                finally:
+                    in_flight -= 1
+
+                if retire:
+                    dead_tokens += 1
+                    return
+                if backoff:
+                    await asyncio.sleep(backoff)
+                elif not stop_event.is_set():
+                    await asyncio.sleep(delay)
         finally:
             try:
                 await asyncio.wait_for(client.close(), timeout=15)
@@ -321,12 +511,24 @@ async def run_broadcast(
                         await client.http.close()
                 except Exception:
                     pass
-        return stop_event.is_set()
 
-    results = await asyncio.gather(
-        *(run_token(token, bucket) for token, bucket in zip(tokens, buckets))
-    )
-    stopped = stopped or stop_event.is_set() or any(results)
+    reporter = asyncio.create_task(progress_loop())
+    try:
+        await asyncio.gather(*(run_token(token) for token in tokens))
+    finally:
+        finished.set()
+        reporter.cancel()
+        await asyncio.gather(reporter, return_exceptions=True)
+
+    stopped = stop_event.is_set()
+    if not stopped:
+        # كل التوكنات وقفت (ميتة) وفضل أعضاء بالطابور → نحسبهم فاشلين
+        leftover = queue.qsize()
+        if leftover:
+            failed += leftover
+            errors += leftover
+    sync_stats()
+    stats["finished_at"] = time.monotonic()
     await on_done(done, failed, stopped)
 
 
@@ -694,16 +896,10 @@ class BroadcastSystem(commands.Cog):
                 "ما في أي توكن صالح حالياً. أضف بوت جديد أو افحص إعدادات Secrets.",
             )
 
-        try:
-            member_count = int(getattr(guild, "member_count", 0) or 0)
-            timeout = 90 if member_count > 5000 else 45
-            await asyncio.wait_for(guild.chunk(cache=True), timeout=timeout)
-        except Exception:
-            # نكمّل بالأعضاء الموجودين بالكاش
-            pass
+        online_ids = await _online_member_ids(guild, force=True)
         members = [member for member in guild.members if not member.bot]
         if audience == "online":
-            members = [member for member in members if _is_online(member)]
+            members = [member for member in members if member.id in online_ids]
             if not members:
                 return (
                     None,
@@ -712,11 +908,7 @@ class BroadcastSystem(commands.Cog):
                     "(Developer Portal → Bot → Privileged Gateway Intents → Presence Intent).",
                 )
         elif audience == "offline":
-            members = [
-                member
-                for member in members
-                if member.status in {discord.Status.offline, discord.Status.invisible}
-            ]
+            members = [member for member in members if member.id not in online_ids]
 
         notice_parts = []
         if disabled_count:
@@ -793,8 +985,11 @@ class BroadcastSystem(commands.Cog):
             {"campaign": campaign},
         )
 
+        stats: dict = {}
+        last_saved = [0.0]
+
         async def safe_progress(done: int, failed: int):
-            # العداد يتحدث فوراً على الرسالة؛ التخزين كل عدة إرسالات لتقليل الضغط
+            # العداد يتحدث على الرسالة كل ثانيتين؛ التخزين كل ~4 ثواني
             campaign_update = {
                 **campaign,
                 "cursor": done + failed,
@@ -803,8 +998,9 @@ class BroadcastSystem(commands.Cog):
                 "status": "running",
             }
             campaign.update(campaign_update)
-            processed = done + failed
-            if processed % 5 == 0 or processed <= 3:
+            now = time.monotonic()
+            if now - last_saved[0] >= 4:
+                last_saved[0] = now
                 try:
                     await Storage.update_guild(
                         guild.id,
@@ -821,8 +1017,8 @@ class BroadcastSystem(commands.Cog):
                         done,
                         failed,
                         discord.Color.teal(),
+                        stats,
                     ),
-                    view=BroadcastStopView(self, guild.id),
                 )
             except (discord.NotFound, discord.Forbidden, discord.HTTPException):
                 pass
@@ -852,6 +1048,7 @@ class BroadcastSystem(commands.Cog):
                         done,
                         failed,
                         color,
+                        stats,
                     ),
                     view=None,
                 )
@@ -877,6 +1074,7 @@ class BroadcastSystem(commands.Cog):
                     initial_done,
                     initial_failed,
                     send_delay=delay,
+                    stats=stats,
                 )
             except Exception:
                 logger.exception("Broadcast worker failed for guild %s", guild.id)
@@ -1519,7 +1717,7 @@ class BroadcastSystem(commands.Cog):
             if guild is None:
                 await interaction.followup.send("الأمر داخل سيرفر فقط.", ephemeral=True)
                 return
-            total, online, offline = await _guild_presence_counts(guild)
+            total, online, offline = await _guild_presence_counts(guild, force=True)
             try:
                 await asyncio.wait_for(self._refresh_panel(interaction), timeout=10)
             except Exception as e:
