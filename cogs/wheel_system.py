@@ -15,20 +15,20 @@ SECTION = "wheel"
 
 PRIZES = {
     "normal": [
-        {"prize": "200k", "chance": 50},
-        {"prize": "500k", "chance": 20},
-        {"prize": "750k", "chance": 1},
-        {"prize": "1M", "chance": 0.1},
+        {"prize": "2 rob", "chance": 50},
+        {"prize": "4 rob", "chance": 20},
+        {"prize": "6 rob", "chance": 1},
+        {"prize": "8 rob", "chance": 0.1},
         {"prize": "10m", "chance": 0.00001},
     ],
     "super": [
-        {"prize": "200k", "chance": 50},
-        {"prize": "300k", "chance": 30},
-        {"prize": "400k", "chance": 7},
-        {"prize": "10m", "chance": 0.01},
-        {"prize": "8m", "chance": 0.00001},
-        {"prize": "2m", "chance": 0.00001},
-        {"prize": "5m", "chance": 0.00001},
+        {"prize": "6 rob", "chance": 50},
+        {"prize": "8 rob", "chance": 30},
+        {"prize": "10 rob", "chance": 7},
+        {"prize": "15 rob", "chance": 0.01},
+        {"prize": "50 rob", "chance": 0.00001},
+        {"prize": "6 rob", "chance": 0.00001},
+        {"prize": "10 rob", "chance": 0.00001},
     ],
 }
 
