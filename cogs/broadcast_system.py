@@ -20,10 +20,11 @@ from utils.checks import is_owner
 
 SEND_DELAY_SECONDS = 0.2
 PROGRESS_INTERVAL_SECONDS = 2.0  # تحديث رسالة العداد كل ثانيتين (مو بعد كل إرسال)
-PRESENCE_CACHE_SECONDS = 20
-MAX_SEND_ATTEMPTS = 3          # محاولات للأخطاء المؤقتة (timeout / 5xx)
-SLOW_DM_BACKOFF_SECONDS = 20   # لما ديسكورد يقول "opening DMs too fast"
-SLOW_DM_MAX_HITS = 5           # بعدها نوقف هالتوكن ونوزع شغله على الباقي
+PRESENCE_CACHE_SECONDS = 60          # كان 20 — زدناه عشان ما نعيد chunk كل شوي
+PRESENCE_FORCE_MIN_AGE = 45          # ما نعمل force إلا إذا الكاش أقدم من هالقيمة
+MAX_SEND_ATTEMPTS = 3                # محاولات للأخطاء المؤقتة (timeout / 5xx)
+SLOW_DM_BACKOFF_SECONDS = 20         # لما ديسكورد يقول "opening DMs too fast"
+SLOW_DM_MAX_HITS = 5                 # بعدها نوقف هالتوكن ونوزع شغله على الباقي
 # أكواد ديسكورد: 50007 = ما بنقدر نرسل لهالمستخدم (DM مقفول) · 10013 = مستخدم مجهول
 DM_CLOSED_CODES = {50007, 10013}
 # 40003 = You are opening direct messages too fast
@@ -196,42 +197,100 @@ async def _ensure_members_cached(guild: discord.Guild) -> None:
             pass
 
 
-async def _online_member_ids(guild: discord.Guild, force: bool = False) -> set[int]:
-    """ids الأعضاء (بدون بوتات) اللي حالتهم أونلاين/idle/dnd/بث، بعد مزامنة الـpresences."""
+def _online_from_memory(guild: discord.Guild) -> set[int]:
+    """يرجع الأونلاين من الذاكرة فوراً بدون أي طلب لـ Discord (كاش + guild.members)."""
+    online: set[int] = set()
     cached = _presence_cache.get(guild.id)
-    if cached and not force and time.monotonic() - cached[0] < PRESENCE_CACHE_SECONDS:
-        return cached[1]
+    if cached:
+        online.update(cached[1])
+    for member in guild.members:
+        if not member.bot and _member_is_online(member):
+            online.add(member.id)
+    return online
 
+
+async def _refresh_presence_cache(guild: discord.Guild) -> None:
+    """يحدّث كاش الأونلاين في الخلفية (ما بنستناه وقت بدء البرود)."""
     lock = _presence_locks.setdefault(guild.id, asyncio.Lock())
+    if lock.locked():
+        return
     async with lock:
         cached = _presence_cache.get(guild.id)
-        if cached and not force and time.monotonic() - cached[0] < PRESENCE_CACHE_SECONDS:
-            return cached[1]
-
-        await _ensure_members_cached(guild)
-        member_count = int(getattr(guild, "member_count", 0) or 0)
-        timeout = 90 if member_count > 5000 else 45
-
-        online: set[int] = set()
+        if cached and time.monotonic() - cached[0] < PRESENCE_FORCE_MIN_AGE:
+            return
         try:
-            fetched = await _request_presence_chunk(guild, timeout)
-            for member in fetched or []:
+            await _ensure_members_cached(guild)
+            member_count = int(getattr(guild, "member_count", 0) or 0)
+            timeout = 45 if member_count > 5000 else 25
+            online: set[int] = set()
+            try:
+                fetched = await _request_presence_chunk(guild, timeout)
+                for member in fetched or []:
+                    if not member.bot and _member_is_online(member):
+                        online.add(member.id)
+            except Exception:
+                logger.warning(
+                    "presence chunk failed for guild %s; keeping memory snapshot",
+                    guild.id,
+                    exc_info=True,
+                )
+            for member in guild.members:
                 if not member.bot and _member_is_online(member):
                     online.add(member.id)
+            if online:
+                _presence_cache[guild.id] = (time.monotonic(), online)
         except Exception:
-            logger.warning(
-                "presence chunk failed for guild %s; using cached presences",
-                guild.id,
-                exc_info=True,
-            )
+            logger.exception("background presence refresh failed for guild %s", guild.id)
 
-        # حالات الكاش الحي (PRESENCE_UPDATE) نضيفها فوق نتيجة الطلب.
-        for member in guild.members:
-            if not member.bot and _member_is_online(member):
-                online.add(member.id)
 
-        _presence_cache[guild.id] = (time.monotonic(), online)
+async def _online_member_ids(guild: discord.Guild, force: bool = False) -> set[int]:
+    """
+    ids الأونلاين فوراً من الذاكرة.
+    ما نعلّق بدء البرود على chunk من ديسكورد — التحديث يصير بالخلفية.
+    إذا القائمة فاضية (أول تشغيل مثلاً) نعمل تحديث سريع بمهلة قصيرة مرة واحدة.
+    """
+    online = _online_from_memory(guild)
+    cached = _presence_cache.get(guild.id)
+
+    # لو فاضية تماماً → تحديث سريع مرة واحدة بمهلة قصيرة عشان ما نرجع "ما في أونلاين" غلط
+    if not online:
+        lock = _presence_locks.setdefault(guild.id, asyncio.Lock())
+        if not lock.locked():
+            async with lock:
+                online = _online_from_memory(guild)
+                if not online:
+                    try:
+                        await _ensure_members_cached(guild)
+                        fetched = await asyncio.wait_for(
+                            _request_presence_chunk(guild, 12),
+                            timeout=15,
+                        )
+                        for member in fetched or []:
+                            if not member.bot and _member_is_online(member):
+                                online.add(member.id)
+                        for member in guild.members:
+                            if not member.bot and _member_is_online(member):
+                                online.add(member.id)
+                        if online:
+                            _presence_cache[guild.id] = (time.monotonic(), online)
+                    except Exception:
+                        logger.warning(
+                            "quick presence fetch failed for guild %s",
+                            guild.id,
+                            exc_info=True,
+                        )
+                        online = _online_from_memory(guild)
         return online
+
+    # في أونلاين بالذاكرة → نرجعه فوراً ونحدّث الكاش بالخلفية
+    need_refresh = force or (not cached) or (
+        time.monotonic() - cached[0] >= PRESENCE_CACHE_SECONDS
+    )
+    if need_refresh:
+        asyncio.create_task(_refresh_presence_cache(guild))
+    if not cached or time.monotonic() - cached[0] >= 5:
+        _presence_cache[guild.id] = (time.monotonic(), online)
+    return online
 
 
 async def _guild_presence_counts(
@@ -874,49 +933,74 @@ class BroadcastSystem(commands.Cog):
         # نظّف مهمة عالقة إذا التاسك خلص أو مات
         job = self._active_broadcasts.get(guild.id)
         if job:
+            # حالة "preparing" أو "running" = في برود شغال، ما نسمح بواحد ثاني
+            if job.get("status") == "preparing":
+                return None, None, "ما تقدر تبدأ برودكاست ثاني إلا لما يخلص اللي شغال حالياً."
             task = job.get("task")
             if task is None or task.done():
                 self._active_broadcasts.pop(guild.id, None)
             else:
-                return None, None, "في برودكاست شغال حالياً بهذا السيرفر. استخدم إيقاف أولاً."
+                return None, None, "ما تقدر تبدأ برودكاست ثاني إلا لما يخلص اللي شغال حالياً."
 
-        config = await self._config(guild.id)
-        if not config.get("tokens"):
-            return None, None, "لم يتم اضافة أي بوت برودكاست."
+        # نسجل حالة preparing فوراً قبل أي عمل ثقيل، عشان الضغط المتعدد ما يعدي
+        self._active_broadcasts[guild.id] = {
+            "status": "preparing",
+            "stop_event": asyncio.Event(),
+            "task": None,
+        }
 
-        # لا نفحص كل التوكنات من جديد كل مرة (يسبب تعليق بعد برود كبير)
-        # نستخدم الصالح المخزّن، ونفحص فقط اللي حالته مش valid أو قديم
-        valid_tokens, disabled_count, temporary_count = (
-            await self._validate_stored_tokens(guild.id, soft=True)
-        )
-        if not valid_tokens:
-            return (
-                None,
-                None,
-                "ما في أي توكن صالح حالياً. أضف بوت جديد أو افحص إعدادات Secrets.",
+        try:
+            config = await self._config(guild.id)
+            if not config.get("tokens"):
+                self._active_broadcasts.pop(guild.id, None)
+                return None, None, "لم يتم اضافة أي بوت برودكاست."
+
+            # لا نفحص كل التوكنات من جديد كل مرة (يسبب تعليق بعد برود كبير)
+            # نستخدم الصالح المخزّن، ونفحص فقط اللي حالته مش valid أو قديم
+            valid_tokens, disabled_count, temporary_count = (
+                await self._validate_stored_tokens(guild.id, soft=True)
             )
-
-        online_ids = await _online_member_ids(guild, force=True)
-        members = [member for member in guild.members if not member.bot]
-        if audience == "online":
-            members = [member for member in members if member.id in online_ids]
-            if not members:
+            if not valid_tokens:
+                self._active_broadcasts.pop(guild.id, None)
                 return (
                     None,
                     None,
-                    "ما في أي عضو أونلاين حالياً، أو إن Presence Intent مش مفعّل "
-                    "(Developer Portal → Bot → Privileged Gateway Intents → Presence Intent).",
+                    "ما في أي توكن صالح حالياً. أضف بوت جديد أو افحص إعدادات Secrets.",
                 )
-        elif audience == "offline":
-            members = [member for member in members if member.id not in online_ids]
 
-        notice_parts = []
-        if disabled_count:
-            notice_parts.append(f"تم تعطيل {disabled_count} توكن غير صالح")
-        if temporary_count:
-            notice_parts.append(f"تم تجاوز {temporary_count} توكن بسبب خطأ مؤقت")
-        notice = " — ".join(notice_parts) if notice_parts else None
-        return valid_tokens, [member.id for member in members], notice
+            # أونلاين فوراً من الذاكرة — بدون انتظار chunk من ديسكورد
+            # (التحديث يصير بالخلفية داخل _online_member_ids)
+            online_ids = await _online_member_ids(guild, force=False)
+            humans = [m for m in guild.members if not m.bot]
+
+            if audience == "online":
+                # نرسل لكل id معروف أونلاين (من الكاش + الحالات الحية)
+                member_ids = list(online_ids)
+                if not member_ids:
+                    self._active_broadcasts.pop(guild.id, None)
+                    return (
+                        None,
+                        None,
+                        "ما في أي عضو أونلاين حالياً، أو إن Presence Intent مش مفعّل "
+                        "(Developer Portal → Bot → Privileged Gateway Intents → Presence Intent).",
+                    )
+            elif audience == "offline":
+                member_ids = [m.id for m in humans if m.id not in online_ids]
+            else:
+                # all
+                member_ids = [m.id for m in humans]
+
+            notice_parts = []
+            if disabled_count:
+                notice_parts.append(f"تم تعطيل {disabled_count} توكن غير صالح")
+            if temporary_count:
+                notice_parts.append(f"تم تجاوز {temporary_count} توكن بسبب خطأ مؤقت")
+            notice = " — ".join(notice_parts) if notice_parts else None
+            return valid_tokens, member_ids, notice
+        except Exception:
+            # أي خطأ غير متوقع → نظف الـlock
+            self._active_broadcasts.pop(guild.id, None)
+            raise
 
     async def stop_broadcast(self, guild_id: int) -> bool:
         job = self._active_broadcasts.get(guild_id)
@@ -929,7 +1013,12 @@ class BroadcastSystem(commands.Cog):
             except Exception:
                 pass
             return False
-        job["stop_event"].set()
+
+        # حتى لو لسا preparing، نوقف وننظف
+        stop_event = job.get("stop_event")
+        if stop_event is not None:
+            stop_event.set()
+
         task = job.get("task")
         if task is not None and not task.done():
             # نعطي مهلة قصيرة ثم نلغي وننظف عشان تقدر تبدأ برود جديد بسرعة
@@ -957,16 +1046,29 @@ class BroadcastSystem(commands.Cog):
     ) -> bool:
         job = self._active_broadcasts.get(guild.id)
         if job:
-            task = job.get("task")
-            if task is not None and not task.done():
-                return False
-            self._active_broadcasts.pop(guild.id, None)
-
-        stop_event = asyncio.Event()
-        self._active_broadcasts[guild.id] = {
-            "stop_event": stop_event,
-            "task": None,
-        }
+            # لو كانت preparing (من _prepare_broadcast) نكمل عليها
+            if job.get("status") == "preparing":
+                stop_event = job.get("stop_event") or asyncio.Event()
+                job["status"] = "running"
+                job["stop_event"] = stop_event
+            else:
+                task = job.get("task")
+                if task is not None and not task.done():
+                    return False
+                self._active_broadcasts.pop(guild.id, None)
+                stop_event = asyncio.Event()
+                self._active_broadcasts[guild.id] = {
+                    "status": "running",
+                    "stop_event": stop_event,
+                    "task": None,
+                }
+        else:
+            stop_event = asyncio.Event()
+            self._active_broadcasts[guild.id] = {
+                "status": "running",
+                "stop_event": stop_event,
+                "task": None,
+            }
         campaign = {
             "status": "running",
             "channel_id": status_message.channel.id,
@@ -1329,6 +1431,7 @@ class BroadcastSystem(commands.Cog):
             interaction.guild, audience
         )
         if tokens is None:
+            # _prepare_broadcast نظّف الـlock بنفسه عند الفشل
             await interaction.followup.send(notice)
             return
 
@@ -1353,8 +1456,10 @@ class BroadcastSystem(commands.Cog):
             message,
         )
         if not started:
+            # نظف أي lock عالق
+            self._active_broadcasts.pop(interaction.guild.id, None)
             await status_message.edit(
-                content="في برودكاست شغال حالياً بهذا السيرفر.",
+                content="ما تقدر تبدأ برودكاست ثاني إلا لما يخلص اللي شغال حالياً.",
                 embed=None,
                 view=None,
             )
@@ -1392,8 +1497,9 @@ class BroadcastSystem(commands.Cog):
             message,
         )
         if not started:
+            self._active_broadcasts.pop(guild.id, None)
             await status_message.edit(
-                content="في برودكاست شغال حالياً بهذا السيرفر.",
+                content="ما تقدر تبدأ برودكاست ثاني إلا لما يخلص اللي شغال حالياً.",
                 embed=None,
                 view=None,
             )
